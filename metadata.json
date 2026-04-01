@@ -1,0 +1,5 @@
+{
+  "name": "AuraNook",
+  "description": "Una completa aplicación web para el diseño de planos y decoración de interiores, con soporte para edificios de varias plantas, mediciones exactas, cálculos de superficie y generación de plano en pdf y en dxf.",
+  "requestFramePermissions": []
+}
