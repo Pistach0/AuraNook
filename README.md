@@ -1,20 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 📐 AuraNook | Diseño de Planos Inteligente
 
-# Run and deploy your AI Studio app
+Bienvenido a **AuraNook**, la herramienta definitiva para diseñar y visualizar tus espacios de forma rápida y sencilla. Desarrollada por el **Pistach0 Team**.
 
-This contains everything you need to run your app locally.
+## ✨ Características principales
+* **Diseño 2D Intuitivo:** Crea planos profesionales con solo arrastrar y soltar.
+* **Inteligencia Artificial:** Potenciado por Google Gemini para ayudarte en la creación de espacios.
+* **Multiplanta:** Organiza tus diseños por niveles (Planta Baja, Primera Planta, etc.).
+* **Exportación Rápida:** Visualiza superficies y medidas en tiempo real.
 
-View your app in AI Studio: https://ai.studio/apps/d18584e2-3d3b-4ec6-be51-40a21c7d970a
+## 🚀 Cómo empezar
+Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
 
-## Run Locally
+---
+### 🛠️ Tecnología
+* **Frontend:** React + TypeScript + Vite
+* **Estilos:** Tailwind CSS
+* **IA:** Google Gemini Pro API
+* **Despliegue:** Vercel
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+---
+#AuraNook #Pistach0Team #Architecture #AIDesign #React #WebDevelopment #floor-plan-creator #canvas-drawing #ai-studio  #design-tool
