@@ -738,11 +738,109 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
   };
 
   const handleStairsDragEnd = (id: string, e: any) => {
-    const pos = snapToGrid({ x: e.target.x(), y: e.target.y() });
-    updateCurrentFloor(floor => ({
-      ...floor,
-      stairs: floor.stairs.map(s => s.id === id ? { ...s, x: pos.x, y: pos.y } : s)
-    }));
+    const stairs = currentFloor.stairs.find(s => s.id === id);
+    if (!stairs) return;
+
+    const dx = e.currentTarget.x() - stairs.x;
+    const dy = e.currentTarget.y() - stairs.y;
+
+    const idsToMove = selectedIds.includes(id) ? selectedIds : [id];
+
+    updateCurrentFloor(floor => {
+      const newStairs = floor.stairs.map(s => {
+        if (idsToMove.includes(s.id)) {
+          let newX = s.x + dx;
+          let newY = s.y + dy;
+          
+          let nearestWallId = s.attachedWallId;
+          let nearestWallSide = s.attachedWallSide;
+          let nearestWallOffset = s.attachedWallOffset;
+          let rotation = s.rotation;
+
+          if (s.id === id) {
+            // Snapping logic for stairs
+            const sHeight = cmToPx(s.length || 200); // Use length as depth
+            const sWidth = cmToPx(s.width || 100);
+            let minDistance = 40; // Fixed snap distance for better control
+            let foundWallId = '';
+            let foundSide = 1;
+            let foundOffset = 0;
+
+            floor.walls.forEach(wall => {
+              const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
+              if (dist < minDistance) {
+                minDistance = dist;
+                foundWallId = wall.id;
+                
+                const wallLen = getDistance(wall.start, wall.end);
+                const wdx = wall.end.x - wall.start.x;
+                const wdy = wall.end.y - wall.start.y;
+                const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
+                
+                // Snap to ends if close
+                let rawOffset = Math.max(0, Math.min(1, t));
+                const halfWidthOffset = (sWidth / 2) / wallLen;
+                
+                if (rawOffset < halfWidthOffset + 0.05) rawOffset = halfWidthOffset;
+                if (rawOffset > 1 - halfWidthOffset - 0.05) rawOffset = 1 - halfWidthOffset;
+                
+                foundOffset = rawOffset;
+
+                const projX = wall.start.x + foundOffset * wdx;
+                const projY = wall.start.y + foundOffset * wdy;
+
+                const nx = -wdy / wallLen;
+                const ny = wdx / wallLen;
+                const dot = (newX - projX) * nx + (newY - projY) * ny;
+                foundSide = dot >= 0 ? 1 : -1;
+              }
+            });
+
+            if (foundWallId) {
+              const wall = floor.walls.find(w => w.id === foundWallId)!;
+              const wallLen = getDistance(wall.start, wall.end);
+              const wdx = wall.end.x - wall.start.x;
+              const wdy = wall.end.y - wall.start.y;
+              const nx = -wdy / wallLen;
+              const ny = wdx / wallLen;
+              const thickness = cmToPx(wall.thickness);
+              
+              newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + sHeight / 2);
+              newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + sHeight / 2);
+              
+              nearestWallId = foundWallId;
+              nearestWallSide = foundSide;
+              nearestWallOffset = foundOffset;
+              rotation = getAngle(wall.start, wall.end);
+              if (foundSide === -1) rotation += 180;
+            } else {
+              const snapped = snapToGrid({ x: newX, y: newY });
+              newX = snapped.x;
+              newY = snapped.y;
+              nearestWallId = undefined;
+              nearestWallSide = undefined;
+              nearestWallOffset = undefined;
+            }
+          }
+
+          return { 
+            ...s, 
+            x: newX, 
+            y: newY, 
+            rotation,
+            attachedWallId: nearestWallId,
+            attachedWallSide: nearestWallSide,
+            attachedWallOffset: nearestWallOffset
+          };
+        }
+        return s;
+      });
+
+      return {
+        ...floor,
+        stairs: newStairs
+      };
+    });
   };
 
   const handleOpeningDragEnd = (id: string, e: any) => {
@@ -881,22 +979,22 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           <Group>
             {/* Base */}
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#D3D3D3" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
-            {/* Armrests */}
-            <Rect x={-width/2} y={-height/2} width={width/6} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            <Rect x={width/2 - width/6} y={-height/2} width={width/6} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            {/* Backrest */}
-            <Rect x={-width/2 + width/6} y={-height/2} width={width - width/3} height={height/3} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            {/* Seat Cushions */}
+            {/* Armrests - Thinner */}
+            <Rect x={-width/2} y={-height/2} width={width/10} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            <Rect x={width/2 - width/10} y={-height/2} width={width/10} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            {/* Backrest - Shallower */}
+            <Rect x={-width/2 + width/10} y={-height/2} width={width - width/5} height={height/5} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            {/* Seat Cushions - Larger */}
             {f.type === 'sofa' ? (
               <>
-                <Rect x={-width/2 + width/6 + 2} y={-height/2 + height/3 + 2} width={(width - width/3)/3 - 2} height={height - height/3 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-                <Rect x={-width/2 + width/6 + (width - width/3)/3 + 2} y={-height/2 + height/3 + 2} width={(width - width/3)/3 - 2} height={height - height/3 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-                <Rect x={-width/2 + width/6 + 2*(width - width/3)/3 + 2} y={-height/2 + height/3 + 2} width={(width - width/3)/3 - 4} height={height - height/3 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                <Rect x={-width/2 + width/10 + 2} y={-height/2 + height/5 + 2} width={(width - width/5)/3 - 2} height={height - height/5 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                <Rect x={-width/2 + width/10 + (width - width/5)/3 + 2} y={-height/2 + height/5 + 2} width={(width - width/5)/3 - 2} height={height - height/5 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                <Rect x={-width/2 + width/10 + 2*(width - width/5)/3 + 2} y={-height/2 + height/5 + 2} width={(width - width/5)/3 - 4} height={height - height/5 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
               </>
             ) : (
               <>
-                <Rect x={-width/2 + width/6 + 2} y={-height/2 + height/3 + 2} width={(width - width/3)/2 - 2} height={height - height/3 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-                <Rect x={0 + 1} y={-height/2 + height/3 + 2} width={(width - width/3)/2 - 4} height={height - height/3 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                <Rect x={-width/2 + width/10 + 2} y={-height/2 + height/5 + 2} width={(width - width/5)/2 - 2} height={height - height/5 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                <Rect x={0 + 1} y={-height/2 + height/5 + 2} width={(width - width/5)/2 - 4} height={height - height/5 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
               </>
             )}
           </Group>
@@ -908,14 +1006,14 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             <Rect x={-width/2} y={-height/2} width={width} height={height*0.55} fill="#D3D3D3" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
             {/* Extension */}
             <Rect x={width/2 - width*0.35} y={-height/2} width={width*0.35} height={height} fill="#D3D3D3" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
-            {/* Backrest */}
-            <Rect x={-width/2} y={-height/2} width={width} height={height*0.2} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            {/* Armrest */}
-            <Rect x={-width/2} y={-height/2} width={width*0.1} height={height*0.55} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            <Rect x={width/2 - width*0.1} y={-height/2} width={width*0.1} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            {/* Cushions */}
-            <Rect x={-width/2 + width*0.1 + 2} y={-height/2 + height*0.2 + 2} width={width*0.55 - 4} height={height*0.35 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-            <Rect x={width/2 - width*0.35 + 2} y={-height/2 + height*0.2 + 2} width={width*0.25 - 4} height={height*0.8 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            {/* Backrest - Shallower */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height*0.15} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            {/* Armrests - Thinner */}
+            <Rect x={-width/2} y={-height/2} width={width*0.08} height={height*0.55} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            <Rect x={width/2 - width*0.08} y={-height/2} width={width*0.08} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            {/* Cushions - Adjusted */}
+            <Rect x={-width/2 + width*0.08 + 2} y={-height/2 + height*0.15 + 2} width={width*0.57 - 4} height={height*0.4 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+            <Rect x={width/2 - width*0.35 + 2} y={-height/2 + height*0.15 + 2} width={width*0.27 - 4} height={height*0.85 - 4} fill="#E8E8E8" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
           </Group>
         )}
 
@@ -1267,6 +1365,15 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                   stroke={strokeColor}
                   strokeWidth={strokeW}
                 />
+                <Text
+                  text="DESC."
+                  x={-cmToPx(flights[0].width)/2 + 5}
+                  y={-cmToPx(flights[0].length/2) - cmToPx(flights[1].width) + 5}
+                  fontSize={8}
+                  fontStyle="bold"
+                  fill="#141414"
+                  opacity={0.3}
+                />
                 <Line
                   points={[
                     -cmToPx(flights[0].width)/2, -cmToPx(flights[0].length/2) - cmToPx(flights[1].width),
@@ -1597,6 +1704,18 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         ) : (
           <Group>
+            {/* Exterior Sill (Alfeizar) */}
+            <Rect 
+              width={cmToPx(opening.width) + 10} 
+              height={8} 
+              fill="#F3F4F6" 
+              stroke="#9CA3AF"
+              strokeWidth={0.5}
+              offsetX={(cmToPx(opening.width) + 10) / 2} 
+              offsetY={cmToPx(wall.thickness) / 2 + 8} 
+              cornerRadius={1}
+            />
+            {/* Window Frame */}
             <Rect 
               width={cmToPx(opening.width)} 
               height={cmToPx(wall.thickness)} 
@@ -1605,6 +1724,17 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               strokeWidth={1}
               offsetX={cmToPx(opening.width) / 2} 
               offsetY={cmToPx(wall.thickness) / 2} 
+            />
+            {/* Glass lines */}
+            <Line 
+              points={[-cmToPx(opening.width) / 2, -2, cmToPx(opening.width) / 2, -2]} 
+              stroke="#141414" 
+              strokeWidth={0.5} 
+            />
+            <Line 
+              points={[-cmToPx(opening.width) / 2, 2, cmToPx(opening.width) / 2, 2]} 
+              stroke="#141414" 
+              strokeWidth={0.5} 
             />
             <Line 
               points={[-cmToPx(opening.width) / 2, 0, cmToPx(opening.width) / 2, 0]} 
@@ -1701,12 +1831,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             
             // Better floor colors
             const getFillColor = (color: string) => {
-              if (color === '#9CA3AF') return 'rgba(156, 163, 175, 0.9)'; // Gray 400
-              if (color === '#EC4899') return 'rgba(236, 72, 153, 0.9)';  // Pink 500
-              if (color === '#22C55E') return 'rgba(34, 197, 94, 0.9)';   // Green 500
-              if (color === '#3B82F6') return 'rgba(59, 130, 246, 0.9)';  // Blue 500
-              if (color === '#F59E0B') return 'rgba(245, 158, 11, 0.9)';  // Amber 500
-              if (color === '#8B5CF6') return 'rgba(139, 92, 246, 0.9)';  // Violet 500
+              if (color === '#9CA3AF') return 'rgba(156, 163, 175, 0.3)'; // Gray 400
+              if (color === '#EC4899') return 'rgba(236, 72, 153, 0.3)';  // Pink 500
+              if (color === '#22C55E') return 'rgba(34, 197, 94, 0.3)';   // Green 500
+              if (color === '#3B82F6') return 'rgba(59, 130, 246, 0.3)';  // Blue 500
+              if (color === '#F59E0B') return 'rgba(245, 158, 11, 0.3)';  // Amber 500
+              if (color === '#8B5CF6') return 'rgba(139, 92, 246, 0.3)';  // Violet 500
               return color;
             };
 

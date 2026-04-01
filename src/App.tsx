@@ -21,6 +21,7 @@ import { FloorManager } from './components/FloorManager';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Canvas } from './components/Canvas';
 import { PrintModal } from './components/PrintModal';
+import { Logo } from './components/Logo';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Grid3X3, 
@@ -43,7 +44,8 @@ import {
   Layers,
   Trash2,
   HelpCircle,
-  Settings2
+  Settings2,
+  Home
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF } from './lib/exportUtils';
@@ -506,7 +508,12 @@ export default function App() {
         "border-r border-[#141414] flex flex-col items-center py-6 bg-white/50 backdrop-blur-sm z-20 transition-all duration-300",
         mode === AppMode.DECORATION && activeCategory ? "w-80" : "w-20"
       )}>
-        <div className="mb-8 font-serif italic text-xl font-bold">P.</div>
+        <div className="mb-8 flex flex-col items-center gap-1">
+          <div className="w-10 h-10 flex items-center justify-center">
+            <Logo size={32} />
+          </div>
+          <span className="text-[8px] font-bold tracking-[0.2em] uppercase opacity-40">AuraNook</span>
+        </div>
         <div className="flex flex-1 w-full overflow-hidden">
           <div className="w-20 flex flex-col items-center flex-shrink-0">
             <Toolbar 
@@ -533,8 +540,19 @@ export default function App() {
       <div className="flex-1 flex flex-col relative min-w-0">
         {/* Header */}
         <header className="h-16 border-b border-[#141414] flex items-center justify-between px-4 bg-white/30 backdrop-blur-md z-10">
-          <div className="flex items-center gap-3 min-w-0">
-            {isEditingName ? (
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-8 h-8 flex items-center justify-center">
+                <Logo size={24} />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-xs font-bold tracking-tight">AuraNook</span>
+                <span className="text-[8px] uppercase tracking-widest opacity-40">Studio</span>
+              </div>
+            </div>
+            <div className="h-6 w-px bg-[#141414]/20 shrink-0" />
+            <div className="flex items-center gap-3 min-w-0">
+              {isEditingName ? (
               <div className="flex items-center gap-1">
                 <input 
                   autoFocus
@@ -589,8 +607,9 @@ export default function App() {
               setProject={setProject} 
             />
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
             <div className="hidden sm:flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
               <button 
                 onClick={() => setProject(p => ({ ...p, zoom: Math.max(0.2, p.zoom - 0.1) }))}
@@ -795,11 +814,18 @@ export default function App() {
         />
 
         {/* Bottom Status Bar */}
-        <footer className="h-8 border-t border-[#141414] bg-white/50 backdrop-blur-sm flex items-center px-4 text-[10px] uppercase tracking-widest opacity-60">
+        <footer className="h-8 border-t border-[#141414] bg-white/50 backdrop-blur-sm flex items-center justify-between px-4 text-[10px] uppercase tracking-widest opacity-60">
           <div className="flex gap-6">
             <span>Escala: 1 Cuadro = 0.5m</span>
             <span>Planta: {currentFloor.name}</span>
             <span>Modo: {mode}</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Home size={10} />
+              <span>AuraNook Studio v1.0</span>
+            </div>
+            <span>© 2026 AuraNook</span>
           </div>
         </footer>
       </div>

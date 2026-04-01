@@ -276,6 +276,11 @@ export async function downloadPDF(
     pdf.setFontSize(10);
     pdf.text(`Superficie: ${floorArea.toFixed(2)} m²`, xOffset + 20, yOffset + 45);
 
+    // Watermark
+    pdf.setFontSize(8);
+    pdf.setTextColor(150, 150, 150);
+    pdf.text("Diseñado con AuraNook", pdfWidth - 100, pdfHeight - 15);
+
     // Restore original state
     stage.position(originalPos);
     stage.scale(originalScale);

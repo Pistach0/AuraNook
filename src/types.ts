@@ -116,6 +116,9 @@ export interface Stairs {
   flights?: StairsFlight[];
   landingWidth?: number;
   landingLength?: number;
+  attachedWallId?: string;
+  attachedWallSide?: number; // 1 or -1
+  attachedWallOffset?: number; // Distance from wall start (0 to 1)
 }
 
 export interface Floor {
