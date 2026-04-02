@@ -1,6 +1,6 @@
 # 📐 AuraNook | Diseño de Planos Inteligente
 
-Bienvenido a **AuraNook**, la herramienta definitiva para diseñar y visualizar tus espacios de forma rápida y sencilla. Desarrollada por el **Pistach0 Team**.
+Bienvenido a **AuraNook**, la herramienta definitiva para diseñar y visualizar tus espacios de forma rápida y sencilla. Desarrollada por el **Aura Team**.
 
 ## ✨ Características principales
 * **Diseño 2D Intuitivo:** Crea planos profesionales con solo arrastrar y soltar.
@@ -19,4 +19,4 @@ Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
 * **Despliegue:** Vercel
 
 ---
-#AuraNook #Pistach0Team #Architecture #AIDesign #React #WebDevelopment #floor-plan-creator #canvas-drawing #ai-studio  #design-tool
+#AuraNook #AuraTeam #Architecture #AIDesign #React #WebDevelopment #floor-plan-creator #canvas-drawing #ai-studio  #design-tool
