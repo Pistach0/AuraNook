@@ -45,10 +45,13 @@ import {
   Trash2,
   HelpCircle,
   Settings2,
-  Home
+  Home,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
-import { downloadDXF, downloadPDF } from './lib/exportUtils';
+import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
+import { optimizeSpace } from './services/geminiService';
 
 import { HelpGuide } from './components/HelpGuide';
 
@@ -94,14 +97,14 @@ export default function App() {
   const [activeTool, setActiveTool] = useState<ToolType>(ToolType.SELECT);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [savedProjects, setSavedProjects] = useState<Project[]>([]);
   const [isProjectsListOpen, setIsProjectsListOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(true);
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const [tempName, setTempName] = useState(project.name);
   const stageRef = useRef<any>(null);
 
@@ -119,6 +122,34 @@ export default function App() {
     }
     setIsUndoRedoAction(false);
   }, [project]);
+
+  const handleOptimizeSpace = async () => {
+    const currentFloor = project.floors.find(f => f.id === project.currentFloorId);
+    if (!currentFloor || currentFloor.furniture.length === 0) return;
+
+    setIsOptimizing(true);
+    try {
+      const pixelsPerMeter = project.gridSize * 2;
+      const optimizations = await optimizeSpace(currentFloor, pixelsPerMeter);
+      
+      updateCurrentFloor(floor => ({
+        ...floor,
+        furniture: floor.furniture.map(f => {
+          const opt = optimizations.find(o => o.id === f.id);
+          if (opt) {
+            return { ...f, x: opt.x, y: opt.y, rotation: opt.rotation };
+          }
+          return f;
+        })
+      }));
+    } catch (error: any) {
+      console.error("Failed to optimize space:", error);
+      const message = error.message || "Hubo un error al optimizar el espacio. Por favor, inténtalo de nuevo.";
+      alert(message);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
 
   const handleZoomTotal = () => {
     if (stageRef.current && stageRef.current.zoomToFit) {
@@ -239,23 +270,36 @@ export default function App() {
     const date = new Date().toISOString().split('T')[0];
     const numFloors = project.floors.length;
     const area = totalProjectArea.toFixed(0);
-    return `${date}_${project.name}_${numFloors}plantas_${area}m2.${ext}`;
+    return `AuraNook_${date}_${project.name}_${numFloors}plantas_${area}m2.${ext}`;
   };
 
   const handleExportDXF = () => {
     downloadDXF(currentFloor, project.gridSize * 2, getExportFilename('dxf'));
   };
 
-  const handleExportPDF = async (options: { showGrid: boolean; showDimensions: boolean; format: string }) => {
+  const handleExportPDF = async (options: { showGrid: boolean; showDimensions: boolean; format: string; type: 'pdf' | 'png' }) => {
     if (stageRef.current) {
-      await downloadPDF(
-        stageRef.current, 
-        getExportFilename('pdf'), 
-        options, 
-        project.gridSize * 2,
-        project,
-        (updates) => setProject(prev => ({ ...prev, ...updates }))
-      );
+      const stage = stageRef.current.getStage();
+      if (stage) {
+        if (options.type === 'pdf') {
+          await downloadPDF(
+            stage, 
+            getExportFilename('pdf'), 
+            options, 
+            project.gridSize * 2,
+            project,
+            (updates) => setProject(prev => ({ ...prev, ...updates }))
+          );
+        } else {
+          await downloadPNG(
+            stage,
+            getExportFilename('png'),
+            options,
+            project.gridSize * 2,
+            project
+          );
+        }
+      }
     }
   };
 
@@ -488,9 +532,44 @@ export default function App() {
 
   const handleSelect = (ids: string[]) => {
     setSelectedIds(ids);
+    // Hide properties panel when selecting a different element or deselecting
+    setIsPropertiesOpen(false);
     if (ids.length > 0 && activeTool !== ToolType.SELECT) {
       setActiveTool(ToolType.SELECT);
     }
+  };
+
+  const handleExportProject = () => {
+    const data = JSON.stringify(project, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `AuraNook_${project.name || 'Proyecto'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedProject = JSON.parse(event.target?.result as string);
+        // Basic validation could be added here
+        setProject(importedProject);
+        setSelectedIds([]);
+        setIsPropertiesOpen(false);
+      } catch (error) {
+        console.error("Error al importar el proyecto:", error);
+        alert("Error al importar el archivo. Asegúrate de que sea un archivo de proyecto de AuraNook válido.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const selectedItem = selectedIds.length === 1 ? (
@@ -508,11 +587,10 @@ export default function App() {
         "border-r border-[#141414] flex flex-col items-center py-6 bg-white/50 backdrop-blur-sm z-20 transition-all duration-300",
         mode === AppMode.DECORATION && activeCategory ? "w-80" : "w-20"
       )}>
-        <div className="mb-8 flex flex-col items-center gap-1">
-          <div className="w-10 h-10 flex items-center justify-center">
-            <Logo size={32} />
+        <div className="mb-8 flex flex-col items-center">
+          <div className="w-16 h-16 flex items-center justify-center">
+            <Logo size={56} />
           </div>
-          <span className="text-[8px] font-bold tracking-[0.2em] uppercase opacity-40">AuraNook</span>
         </div>
         <div className="flex flex-1 w-full overflow-hidden">
           <div className="w-20 flex flex-col items-center flex-shrink-0">
@@ -541,16 +619,6 @@ export default function App() {
         {/* Header */}
         <header className="h-16 border-b border-[#141414] flex items-center justify-between px-4 bg-white/30 backdrop-blur-md z-10">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 flex items-center justify-center">
-                <Logo size={24} />
-              </div>
-              <div className="flex flex-col leading-none">
-                <span className="text-xs font-bold tracking-tight">AuraNook</span>
-                <span className="text-[8px] uppercase tracking-widest opacity-40">Studio</span>
-              </div>
-            </div>
-            <div className="h-6 w-px bg-[#141414]/20 shrink-0" />
             <div className="flex items-center gap-3 min-w-0">
               {isEditingName ? (
               <div className="flex items-center gap-1">
@@ -735,6 +803,53 @@ export default function App() {
             </button>
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
             <button 
+              onClick={() => setIsPropertiesOpen(!isPropertiesOpen)}
+              className={cn(
+                "p-2 rounded-full transition-colors border border-transparent",
+                isPropertiesOpen ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
+              )}
+              title="Propiedades"
+            >
+              <Settings2 size={18} />
+            </button>
+            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+            
+            <button 
+              onClick={handleOptimizeSpace}
+              disabled={isOptimizing}
+              className={cn(
+                "p-2 rounded-full transition-all border border-transparent",
+                isOptimizing ? "bg-[#141414] text-white animate-pulse" : "hover:bg-[#141414]/10 text-purple-600"
+              )}
+              title="Optimizar mi espacio (IA)"
+            >
+              {isOptimizing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+            </button>
+
+            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+            
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={handleExportProject}
+                className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
+                title="Exportar Proyecto (.json)"
+              >
+                <Download size={18} />
+              </button>
+              <label className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors cursor-pointer" title="Importar Proyecto (.json)">
+                <Upload size={18} />
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  onChange={handleImportProject} 
+                  className="hidden" 
+                />
+              </label>
+            </div>
+
+            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+
+            <button 
               onClick={saveProject}
               className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
               title="Guardar Proyecto"
@@ -798,6 +913,7 @@ export default function App() {
             onAddStairs={handleAddStairs}
             updateCurrentFloor={updateCurrentFloor}
             onUpdateProject={setProject}
+            onOpenProperties={() => setIsPropertiesOpen(true)}
           />
         </main>
 
@@ -823,9 +939,9 @@ export default function App() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <Home size={10} />
-              <span>AuraNook Studio v1.0</span>
+              <span>AURA TEAM</span>
             </div>
-            <span>© 2026 AuraNook</span>
+            <span>© 2026 AURA TEAM</span>
           </div>
         </footer>
       </div>
@@ -836,7 +952,7 @@ export default function App() {
         {selectedIds.length > 0 && (
           <motion.div 
             initial={{ x: 300 }}
-            animate={{ x: isPropertiesOpen ? 0 : 288 }}
+            animate={{ x: isPropertiesOpen ? 0 : 350 }}
             exit={{ x: 300 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="w-72 border-l border-[#141414] bg-white/80 backdrop-blur-md z-20 flex flex-col fixed right-0 top-0 bottom-0 shadow-2xl"

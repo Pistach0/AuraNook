@@ -29,6 +29,7 @@ interface CanvasProps {
   onAddStairs: (stairs: Stairs) => void;
   updateCurrentFloor: (updater: (floor: Floor) => Floor) => void;
   onUpdateProject: (updater: (project: Project) => Project) => void;
+  onOpenProperties: () => void;
 }
 
 export const Canvas = React.forwardRef<any, CanvasProps>(({ 
@@ -42,7 +43,8 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
   onAddFurniture,
   onAddStairs,
   updateCurrentFloor,
-  onUpdateProject
+  onUpdateProject,
+  onOpenProperties
 }, ref) => {
   const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [newWallPoints, setNewWallPoints] = useState<Point[]>([]);
@@ -151,7 +153,8 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         x: (stageSize.width / 2 - stage.x()) / scale,
         y: (stageSize.height / 2 - stage.y()) / scale
       };
-    }
+    },
+    getStage: () => stageRef.current
   }));
 
   const snapToGrid = (point: Point): Point => {
@@ -177,46 +180,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       if (dEnd < minDistance) {
         minDistance = dEnd;
         bestPoint = wall.end;
-      }
-    });
-
-    return bestPoint;
-  };
-
-  const snapToWall = (point: Point, itemWidth: number, itemHeight: number): Point => {
-    const snapDistance = 30;
-    let bestPoint = point;
-    let minDistance = snapDistance;
-
-    currentFloor.walls.forEach(wall => {
-      const wallLen = getDistance(wall.start, wall.end);
-      if (wallLen === 0) return;
-
-      const dx = (wall.end.x - wall.start.x) / wallLen;
-      const dy = (wall.end.y - wall.start.y) / wallLen;
-      
-      // Distance from point to line
-      const t = Math.max(0, Math.min(1, ((point.x - wall.start.x) * (wall.end.x - wall.start.x) + (point.y - wall.start.y) * (wall.end.y - wall.start.y)) / (wallLen * wallLen)));
-      const projX = wall.start.x + t * (wall.end.x - wall.start.x);
-      const projY = wall.start.y + t * (wall.end.y - wall.start.y);
-      
-      const dist = Math.sqrt(Math.pow(point.x - projX, 2) + Math.pow(point.y - projY, 2));
-      
-      if (dist < minDistance) {
-        minDistance = dist;
-        const thickness = cmToPx(wall.thickness) / 2;
-        const nx = -dy;
-        const ny = dx;
-        
-        // Determine which side of the wall the point is on
-        const side = (point.x - projX) * nx + (point.y - projY) * ny > 0 ? 1 : -1;
-        
-        // Snap the center to the wall face
-        // We use a small offset to avoid overlapping exactly
-        bestPoint = {
-          x: projX + nx * side * (thickness + 2),
-          y: projY + ny * side * (thickness + 2)
-        };
       }
     });
 
@@ -514,7 +477,11 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       zoomToFit();
       return;
     }
-    // handleDoubleClick(); // Removed as it was undefined
+    
+    // If we double clicked an element (not the stage background), open properties
+    if (e.target !== e.target.getStage() && selectedIds.length > 0) {
+      onOpenProperties();
+    }
   };
 
   useEffect(() => {
@@ -545,15 +512,18 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           if (f.id === id) {
             // Snapping logic for the primary dragged item
             const fHeight = cmToPx(f.height); // Use height (depth) of furniture
-            let minDistance = Math.max(30, fHeight / 2 + 30); // Dynamic snap distance based on furniture size
+            // Snap when the edge of the furniture is within ~37.5cm (15px) of the wall
+            let minDistance = fHeight / 2 + 15; 
             let foundWallId = '';
             let foundSide = 1;
             let foundOffset = 0;
 
             floor.walls.forEach(wall => {
               const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
-              if (dist < minDistance) {
-                minDistance = dist;
+              // Apply a "stickiness" bias to the currently attached wall to prevent jumping in corners
+              const bias = (wall.id === f.attachedWallId) ? 20 : 0;
+              if (dist - bias < minDistance) {
+                minDistance = dist - bias;
                 foundWallId = wall.id;
                 
                 const wallLen = getDistance(wall.start, wall.end);
@@ -639,30 +609,32 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       const newStart = snapToGrid({ x: oldStart.x + dx, y: oldStart.y + dy });
       const newEnd = snapToGrid({ x: oldEnd.x + dx, y: oldEnd.y + dy });
 
+      const updatedWalls = floor.walls.map(w => {
+        let updatedW = { ...w };
+        if (w.id === id) {
+          updatedW.start = newStart;
+          updatedW.end = newEnd;
+        } else {
+          // Check if this wall shares a point with the moved wall (stretching)
+          const wallAngle = getAngle(oldStart, oldEnd);
+          const otherAngle = getAngle(w.start, w.end);
+          const angleDiff = Math.abs(wallAngle - otherAngle) % 180;
+          const isColinear = angleDiff < 1 || angleDiff > 179;
+
+          if (!isColinear) {
+            if (getDistance(w.start, oldStart) < 2) updatedW.start = newStart;
+            else if (getDistance(w.start, oldEnd) < 2) updatedW.start = newEnd;
+            
+            if (getDistance(w.end, oldStart) < 2) updatedW.end = newStart;
+            else if (getDistance(w.end, oldEnd) < 2) updatedW.end = newEnd;
+          }
+        }
+        return updatedW;
+      });
+
       return {
         ...floor,
-        walls: floor.walls.map(w => {
-          let updatedW = { ...w };
-          if (w.id === id) {
-            updatedW.start = newStart;
-            updatedW.end = newEnd;
-          } else {
-            // Check if this wall shares a point with the moved wall (stretching)
-            const wallAngle = getAngle(oldStart, oldEnd);
-            const otherAngle = getAngle(w.start, w.end);
-            const angleDiff = Math.abs(wallAngle - otherAngle) % 180;
-            const isColinear = angleDiff < 1 || angleDiff > 179;
-
-            if (!isColinear) {
-              if (getDistance(w.start, oldStart) < 2) updatedW.start = newStart;
-              else if (getDistance(w.start, oldEnd) < 2) updatedW.start = newEnd;
-              
-              if (getDistance(w.end, oldStart) < 2) updatedW.end = newStart;
-              else if (getDistance(w.end, oldEnd) < 2) updatedW.end = newEnd;
-            }
-          }
-          return updatedW;
-        }),
+        walls: updatedWalls,
         rooms: floor.rooms.map(r => ({
           ...r,
           points: r.points.map(p => {
@@ -672,32 +644,50 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           })
         })),
         furniture: floor.furniture.map(f => {
-          if (f.attachedWallId === id) {
-            const wallLen = getDistance(newStart, newEnd);
-            const wallDx = newEnd.x - newStart.x;
-            const wallDy = newEnd.y - newStart.y;
+          const wall = updatedWalls.find(w => w.id === f.attachedWallId);
+          if (wall) {
+            const wallLen = getDistance(wall.start, wall.end);
+            const wallDx = wall.end.x - wall.start.x;
+            const wallDy = wall.end.y - wall.start.y;
             const nx = -wallDy / wallLen;
             const ny = wallDx / wallLen;
             const offset = f.attachedWallOffset || 0;
             const side = f.attachedWallSide || 1;
-            const thickness = cmToPx(movedWall.thickness);
+            const thickness = cmToPx(wall.thickness);
             const fHeight = cmToPx(f.height);
             
-            // Calculate new position based on wall's new position and offset
-            const newX = newStart.x + wallDx * offset + nx * side * (thickness / 2 + fHeight / 2);
-            const newY = newStart.y + wallDy * offset + ny * side * (thickness / 2 + fHeight / 2);
+            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + fHeight / 2);
+            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + fHeight / 2);
             
-            let rotation = getAngle(newStart, newEnd);
+            let rotation = getAngle(wall.start, wall.end);
             if (side === -1) rotation += 180;
 
-            return {
-              ...f,
-              x: newX,
-              y: newY,
-              rotation
-            };
+            return { ...f, x: newX, y: newY, rotation };
           }
           return f;
+        }),
+        stairs: (floor.stairs || []).map(s => {
+          const wall = updatedWalls.find(w => w.id === s.attachedWallId);
+          if (wall) {
+            const wallLen = getDistance(wall.start, wall.end);
+            const wallDx = wall.end.x - wall.start.x;
+            const wallDy = wall.end.y - wall.start.y;
+            const nx = -wallDy / wallLen;
+            const ny = wallDx / wallLen;
+            const offset = s.attachedWallOffset || 0;
+            const side = s.attachedWallSide || 1;
+            const thickness = cmToPx(wall.thickness);
+            const sHeight = cmToPx(s.length || 200);
+            
+            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + sHeight / 2);
+            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + sHeight / 2);
+            
+            let rotation = getAngle(wall.start, wall.end);
+            if (side === -1) rotation += 180;
+
+            return { ...s, x: newX, y: newY, rotation };
+          }
+          return s;
         })
       };
     });
@@ -715,14 +705,62 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       const newPoints = [...room.points];
       newPoints[pointIndex] = newPos;
 
+      const updatedWalls = floor.walls.map(w => {
+        let updatedW = { ...w };
+        if (getDistance(w.start, oldPoint) < 2) updatedW.start = newPos;
+        if (getDistance(w.end, oldPoint) < 2) updatedW.end = newPos;
+        return updatedW;
+      });
+
       return {
         ...floor,
         rooms: floor.rooms.map(r => r.id === roomId ? { ...r, points: newPoints } : r),
-        walls: floor.walls.map(w => {
-          let updatedW = { ...w };
-          if (getDistance(w.start, oldPoint) < 2) updatedW.start = newPos;
-          if (getDistance(w.end, oldPoint) < 2) updatedW.end = newPos;
-          return updatedW;
+        walls: updatedWalls,
+        furniture: floor.furniture.map(f => {
+          const wall = updatedWalls.find(w => w.id === f.attachedWallId);
+          if (wall && (getDistance(wall.start, oldPoint) < 2 || getDistance(wall.end, oldPoint) < 2)) {
+            const wallLen = getDistance(wall.start, wall.end);
+            const wallDx = wall.end.x - wall.start.x;
+            const wallDy = wall.end.y - wall.start.y;
+            const nx = -wallDy / wallLen;
+            const ny = wallDx / wallLen;
+            const offset = f.attachedWallOffset || 0;
+            const side = f.attachedWallSide || 1;
+            const thickness = cmToPx(wall.thickness);
+            const fHeight = cmToPx(f.height);
+            
+            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + fHeight / 2);
+            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + fHeight / 2);
+            
+            let rotation = getAngle(wall.start, wall.end);
+            if (side === -1) rotation += 180;
+
+            return { ...f, x: newX, y: newY, rotation };
+          }
+          return f;
+        }),
+        stairs: (floor.stairs || []).map(s => {
+          const wall = updatedWalls.find(w => w.id === s.attachedWallId);
+          if (wall && (getDistance(wall.start, oldPoint) < 2 || getDistance(wall.end, oldPoint) < 2)) {
+            const wallLen = getDistance(wall.start, wall.end);
+            const wallDx = wall.end.x - wall.start.x;
+            const wallDy = wall.end.y - wall.start.y;
+            const nx = -wallDy / wallLen;
+            const ny = wallDx / wallLen;
+            const offset = s.attachedWallOffset || 0;
+            const side = s.attachedWallSide || 1;
+            const thickness = cmToPx(wall.thickness);
+            const sHeight = cmToPx(s.length || 200);
+            
+            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + sHeight / 2);
+            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + sHeight / 2);
+            
+            let rotation = getAngle(wall.start, wall.end);
+            if (side === -1) rotation += 180;
+
+            return { ...s, x: newX, y: newY, rotation };
+          }
+          return s;
         })
       };
     });
@@ -777,12 +815,15 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 const wdy = wall.end.y - wall.start.y;
                 const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
                 
-                // Snap to ends if close
+                // Snap to ends if close, but allow full range
                 let rawOffset = Math.max(0, Math.min(1, t));
                 const halfWidthOffset = (sWidth / 2) / wallLen;
                 
-                if (rawOffset < halfWidthOffset + 0.05) rawOffset = halfWidthOffset;
-                if (rawOffset > 1 - halfWidthOffset - 0.05) rawOffset = 1 - halfWidthOffset;
+                // Allow snapping to the very ends (corners)
+                if (rawOffset < 0.1) rawOffset = halfWidthOffset;
+                else if (rawOffset > 0.9) rawOffset = 1 - halfWidthOffset;
+                // Otherwise, if it's within the "safe" range but close to the center, we could snap to center
+                // but let's just allow free movement for now as requested.
                 
                 foundOffset = rawOffset;
 
@@ -1052,31 +1093,43 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
         {f.type === 'toilet' && (
           <Group>
-            {/* Tank */}
-            <Rect x={-width/2} y={-height/2} width={width} height={height/3} fill="#FFFFFF" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
-            {/* Bowl Base */}
-            <Ellipse 
-              x={0} 
-              y={height/4} 
-              radiusX={width/2.2} 
-              radiusY={height/2.5} 
+            {/* Modern Monoblock Toilet - More Geometric */}
+            {/* Tank / Back part - Narrower */}
+            <Rect 
+              x={-width/2} 
+              y={-height/2} 
+              width={width} 
+              height={height/4} 
               fill="#FFFFFF" 
               stroke={strokeColor} 
               strokeWidth={strokeW} 
+              cornerRadius={2} 
             />
-            {/* Seat Inner */}
-            <Ellipse 
-              x={0} 
-              y={height/4} 
-              radiusX={width/3.5} 
-              radiusY={height/4.5} 
+            {/* Bowl - Less Curvy */}
+            <Rect 
+              x={-width/2.5} 
+              y={-height/4} 
+              width={width/1.25} 
+              height={height/1.2} 
+              fill="#FFFFFF" 
+              stroke={strokeColor} 
+              strokeWidth={strokeW} 
+              cornerRadius={4} 
+            />
+            {/* Seat Detail - Simplified */}
+            <Rect 
+              x={-width/3.5} 
+              y={-height/10} 
+              width={width/1.75} 
+              height={height/1.8} 
               fill="#F0F8FF" 
               stroke={strokeColor} 
               strokeWidth={0.5} 
+              opacity={0.5}
+              cornerRadius={2}
             />
-            {/* Flush Button */}
-            <Circle x={width/4} y={-height/2 + height/6} radius={4} fill="#C0C0C0" stroke={strokeColor} strokeWidth={0.5} />
-            <Text x={-width/2} y={height/2 + 2} width={width} align="center" text="INODORO" fontSize={7} fill={strokeColor} opacity={0.4} />
+            {/* Modern Flush Button */}
+            <Rect x={-width/6} y={-height/2 + 5} width={width/3} height={4} fill="#E5E7EB" stroke={strokeColor} strokeWidth={0.5} cornerRadius={2} />
           </Group>
         )}
 
@@ -1091,7 +1144,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             <Rect x={-width/4} y={height/4} width={width/2} height={height/4} fill="#555" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
             {/* Mouse */}
             <Rect x={width/4 + 5} y={height/4 + 5} width={10} height={15} fill="#555" stroke={strokeColor} strokeWidth={0.5} cornerRadius={5} />
-            <Text x={-width/2} y={-5} width={width} align="center" text="ESCRITORIO" fontSize={8} fontStyle="bold" fill={strokeColor} opacity={0.6} />
           </Group>
         )}
 
@@ -1108,7 +1160,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             {/* Armrests */}
             <Rect x={-width/2} y={-height/4} width={width/10} height={height/2} fill="#222" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
             <Rect x={width/2 - width/10} y={-height/4} width={width/10} height={height/2} fill="#222" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
-            <Text x={-width/2} y={height/2 + 2} width={width} align="center" text="SILLA OFICINA" fontSize={7} fill={strokeColor} opacity={0.4} />
           </Group>
         )}
 
@@ -1119,7 +1170,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             <Line points={[-width/2, 0, width/2, 0]} stroke={strokeColor} strokeWidth={1} />
             {/* Handles */}
             <Rect x={width/2 - 10} y={-height/4} width={4} height={height/2} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
-            <Text x={-width/2} y={-5} width={width} align="center" text="NEVERA" fontSize={8} fontStyle="bold" fill={strokeColor} opacity={0.6} />
           </Group>
         )}
 
@@ -1132,7 +1182,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             {/* Controls */}
             <Rect x={-width/2 + 5} y={-height/2 + 5} width={width - 10} height={height/5} fill="#E5E7EB" stroke={strokeColor} strokeWidth={0.5} cornerRadius={2} />
             <Circle x={-width/4} y={-height/2 + 10} radius={3} fill="#3B82F6" />
-            <Text x={-width/2} y={-height/2 + 12} width={width} align="center" text="LAVADORA" fontSize={7} fontStyle="bold" fill={strokeColor} opacity={0.6} />
           </Group>
         )}
 
@@ -1144,7 +1193,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             {/* Controls */}
             <Rect x={-width/2 + 5} y={-height/2 + 5} width={width - 10} height={height/5} fill="#E5E7EB" stroke={strokeColor} strokeWidth={0.5} cornerRadius={2} />
             <Circle x={width/4} y={-height/2 + 10} radius={3} fill="#F97316" />
-            <Text x={-width/2} y={-height/2 + 12} width={width} align="center" text="SECADORA" fontSize={7} fontStyle="bold" fill={strokeColor} opacity={0.6} />
           </Group>
         )}
 
@@ -1155,7 +1203,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             <Rect x={-width/2} y={-height/4} width={15} height={height/2} fill="#4B5563" stroke={strokeColor} strokeWidth={1} />
             {/* Tool area */}
             <Rect x={-width/2 + 20} y={-height/2 + 5} width={width - 40} height={height - 10} fill="#A0522D" stroke={strokeColor} strokeWidth={0.5} opacity={0.5} />
-            <Text x={-width/2} y={-5} width={width} align="center" text="BANCO TRABAJO" fontSize={8} fontStyle="bold" fill="#FFF" opacity={0.8} />
           </Group>
         )}
 
@@ -1169,16 +1216,27 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             {/* Items on shelf */}
             <Rect x={-width/3} y={-height/2 + 5} width={20} height={height/3} fill="#374151" />
             <Rect x={0} y={-height/2 + 5} width={30} height={height/3} fill="#374151" />
-            <Text x={-width/2} y={-5} width={width} align="center" text="ESTANTERÍA" fontSize={8} fontStyle="bold" fill="#FFF" opacity={0.8} />
           </Group>
         )}
 
         {f.type === 'bathroom_sink' && (
           <Group>
-            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#FFFFFF" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
-            <Rect x={-width/2 + 8} y={-height/2 + 8} width={width - 16} height={height - 16} fill="#F0F8FF" stroke={strokeColor} strokeWidth={1} cornerRadius={width/3} />
-            <Circle x={0} y={-height/2 + 12} radius={4} fill="#C0C0C0" stroke={strokeColor} strokeWidth={1} />
-            <Line points={[0, -height/2 + 12, 0, -height/2 + 20]} stroke={strokeColor} strokeWidth={2} />
+            {/* Modern Minimalist Vanity/Sink - Fewer Borders */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#FFFFFF" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={1} />
+            {/* Basin - Integrated look */}
+            <Rect 
+              x={-width/2 + 4} 
+              y={-height/2 + 6} 
+              width={width - 8} 
+              height={height - 12} 
+              fill="#F0F8FF" 
+              stroke={strokeColor} 
+              strokeWidth={0.5} 
+              cornerRadius={2} 
+            />
+            {/* Modern Faucet */}
+            <Rect x={-width/10} y={-height/2 + 1} width={width/5} height={4} fill="#9CA3AF" cornerRadius={1} />
+            <Rect x={-1} y={-height/2 + 1} width={2} height={8} fill="#9CA3AF" />
           </Group>
         )}
 
@@ -1201,7 +1259,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
         {f.type === 'stove' && (
           <Group>
-            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={strokeW} />
             {[...Array(4)].map((_, i) => (
               <Circle 
                 key={i}
@@ -1214,26 +1272,111 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 opacity={0.8}
               />
             ))}
-            <Text x={-width/2} y={height/2 + 2} width={width} align="center" text="COCINA" fontSize={7} fill={strokeColor} opacity={0.4} />
           </Group>
         )}
 
         {f.type === 'sink' && (
           <Group>
-            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
-            <Rect x={-width/2 + 5} y={-height/2 + 5} width={width/2 - 10} height={height - 10} fill="#FFFFFF" cornerRadius={5} stroke={strokeColor} strokeWidth={1} />
-            <Rect x={5} y={-height/2 + 5} width={width/2 - 10} height={height - 10} fill="#FFFFFF" cornerRadius={5} stroke={strokeColor} strokeWidth={1} />
-            <Circle x={0} y={0} radius={4} fill="#141414" />
-            <Text x={-width/2} y={height/2 + 2} width={width} align="center" text="FREGADERO" fontSize={7} fill={strokeColor} opacity={0.4} />
+            {/* Modern Undermount Kitchen Sink - Fewer Borders */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#C0C0C0" stroke={strokeColor} strokeWidth={strokeW} />
+            {/* Main Bowl */}
+            <Rect 
+              x={-width/2 + 2} 
+              y={-height/2 + 6} 
+              width={width - 4} 
+              height={height - 8} 
+              fill="#FFFFFF" 
+              stroke={strokeColor} 
+              strokeWidth={0.5} 
+              cornerRadius={2} 
+            />
+            {/* Drain */}
+            <Circle x={0} y={2} radius={width/15} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} />
+            {/* Modern High-Arc Faucet */}
+            <Group y={-height/2 + 5}>
+              <Circle x={0} y={0} radius={4} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} />
+              {/* Faucet body pointing towards the bowl */}
+              <Rect x={-2} y={0} width={4} height={10} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} cornerRadius={2} />
+              {/* Spout tip */}
+              <Rect x={-2} y={9} width={8} height={3} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
+              {/* Faucet Handle */}
+              <Rect x={-5} y={0} width={4} height={2} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
+            </Group>
           </Group>
         )}
 
         {f.type === 'fireplace' && (
           <Group>
+            {/* Outer structure - Back is at -height/2 */}
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#A0522D" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
-            <Rect x={-width/2 + 10} y={-height/2} width={width - 20} height={height} fill="#F97316" opacity={0.4} />
-            <Line points={[-width/3, height/4, width/3, -height/4]} stroke="#78350F" strokeWidth={2} />
-            <Line points={[width/3, height/4, -width/3, -height/4]} stroke="#78350F" strokeWidth={2} />
+            {/* Firebox - Moved towards the front (bottom) */}
+            <Rect x={-width/2 + 15} y={height/2 - 15} width={width - 30} height={10} fill="#333" stroke={strokeColor} strokeWidth={1} />
+            {/* Fire/Glow */}
+            <Rect x={-width/2 + 25} y={height/2 - 12} width={width - 50} height={8} fill="#F97316" opacity={0.6} />
+            {/* Logs */}
+            <Line points={[-width/4, height/2 - 5, width/4, height/2 - 10]} stroke="#78350F" strokeWidth={3} />
+            <Line points={[width/4, height/2 - 5, -width/4, height/2 - 10]} stroke="#78350F" strokeWidth={3} />
+            {/* Hearth - At the front (bottom) */}
+            <Rect x={-width/2 - 5} y={height/2} width={width + 10} height={10} fill="#6B7280" stroke={strokeColor} strokeWidth={0.5} />
+            {/* Mantelpiece - At the front (bottom) */}
+            <Rect x={-width/2 - 5} y={height/2 - 5} width={width + 10} height={5} fill="#8B4513" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+          </Group>
+        )}
+
+        {f.type === 'nightstand' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
+            {/* Drawer line */}
+            <Line points={[-width/2 + 5, -height/6, width/2 - 5, -height/6]} stroke={strokeColor} strokeWidth={1} />
+            {/* Handle */}
+            <Circle x={0} y={-height/12} radius={3} fill="#C0C0C0" stroke={strokeColor} strokeWidth={0.5} />
+            {/* Top detail */}
+            <Rect x={-width/2 + 2} y={-height/2 + 2} width={width - 4} height={height - 4} fill="transparent" stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
+            {/* Lamp */}
+            <Circle x={width/4} y={-height/4} radius={6} fill="#FDE047" stroke={strokeColor} strokeWidth={0.5} />
+            <Rect x={width/4 - 2} y={-height/4 + 6} width={4} height={4} fill="#141414" />
+          </Group>
+        )}
+
+        {f.type === 'kitchen_counter' && (
+          <Group>
+            {/* Countertop - NO rounded corners */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F3F4F6" stroke={strokeColor} strokeWidth={strokeW} />
+            {/* Front edge detail */}
+            <Line points={[-width/2, height/2 - 5, width/2, height/2 - 5]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
+            {/* Texture/Pattern (simple lines) */}
+            <Line points={[-width/4, -height/2, -width/4, height/2]} stroke={strokeColor} strokeWidth={0.2} opacity={0.2} />
+            <Line points={[width/4, -height/2, width/4, height/2]} stroke={strokeColor} strokeWidth={0.2} opacity={0.2} />
+          </Group>
+        )}
+
+        {f.type === 'plant' && (
+          <Group>
+            {/* Shadow */}
+            <Ellipse x={2} y={2} radiusX={width/4} radiusY={width/5} fill="#000" opacity={0.1} />
+            {/* Pot */}
+            <Circle x={0} y={0} radius={width/4} fill="#8B4513" stroke={strokeColor} strokeWidth={1} />
+            <Circle x={0} y={0} radius={width/5} fill="#A0522D" stroke={strokeColor} strokeWidth={0.5} />
+            {/* Leaves */}
+            {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
+              const rad = (angle * Math.PI) / 180;
+              const leafSize = i % 2 === 0 ? width/3.5 : width/4.5;
+              return (
+                <Ellipse
+                  key={i}
+                  x={Math.cos(rad) * width/5}
+                  y={Math.sin(rad) * width/5}
+                  radiusX={leafSize}
+                  radiusY={width/10}
+                  rotation={angle}
+                  fill="#22C55E"
+                  stroke="#166534"
+                  strokeWidth={0.5}
+                />
+              );
+            })}
+            {/* Center leaf */}
+            <Circle x={0} y={0} radius={width/8} fill="#15803D" />
           </Group>
         )}
 
@@ -1262,7 +1405,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         )}
 
         {/* Fallback for any other furniture type */}
-        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf'].includes(f.type) && (
+        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant'].includes(f.type) && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5F5" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
             <Line points={[-width/2, -height/2, width/2, height/2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
@@ -1521,6 +1664,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           draggable={activeTool === ToolType.SELECT}
           onDragEnd={(e) => handleOpeningDragEnd(opening.id, e)}
           onClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); }}
+          onDblClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); onOpenProperties(); }}
         >
           <Rect
             x={-width/2}
@@ -1595,6 +1739,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         scaleX={opening.scaleX || 1}
         scaleY={opening.scaleY || 1}
         onClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); }}
+        onDblClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); onOpenProperties(); }}
         draggable={activeTool === ToolType.SELECT}
         dragBoundFunc={dragBoundFunc}
         onDragEnd={(e) => handleOpeningDragEnd(opening.id, e)}
@@ -1725,21 +1870,26 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               offsetX={cmToPx(opening.width) / 2} 
               offsetY={cmToPx(wall.thickness) / 2} 
             />
-            {/* Glass lines */}
-            <Line 
-              points={[-cmToPx(opening.width) / 2, -2, cmToPx(opening.width) / 2, -2]} 
-              stroke="#141414" 
-              strokeWidth={0.5} 
+            {/* Sliding Panes */}
+            {/* Pane 1 (Inner/Top) */}
+            <Rect 
+              x={-cmToPx(opening.width) / 2 + 2}
+              y={-cmToPx(wall.thickness) / 2 + 2}
+              width={cmToPx(opening.width) / 2 + 4}
+              height={cmToPx(wall.thickness) / 2 - 2}
+              stroke="#141414"
+              strokeWidth={0.8}
+              fill="#F9FAFB"
             />
-            <Line 
-              points={[-cmToPx(opening.width) / 2, 2, cmToPx(opening.width) / 2, 2]} 
-              stroke="#141414" 
-              strokeWidth={0.5} 
-            />
-            <Line 
-              points={[-cmToPx(opening.width) / 2, 0, cmToPx(opening.width) / 2, 0]} 
-              stroke="#141414" 
-              strokeWidth={1} 
+            {/* Pane 2 (Outer/Bottom) */}
+            <Rect 
+              x={-4}
+              y={2}
+              width={cmToPx(opening.width) / 2 + 2}
+              height={cmToPx(wall.thickness) / 2 - 4}
+              stroke="#141414"
+              strokeWidth={0.8}
+              fill="#F3F4F6"
             />
           </Group>
         )}
@@ -1844,7 +1994,11 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             const labelPos = room.labelPosition || center;
             
             return (
-              <Group key={room.id} onClick={(e) => { e.cancelBubble = true; onSelect([room.id]); }}>
+              <Group 
+                key={room.id} 
+                onClick={(e) => { e.cancelBubble = true; onSelect([room.id]); }}
+                onDblClick={(e) => { e.cancelBubble = true; onSelect([room.id]); onOpenProperties(); }}
+              >
                 <Line
                   points={room.points.flatMap(p => [p.x, p.y])}
                   fill={getFillColor(room.color)}
@@ -1873,8 +2027,8 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                       fill={isSelected ? "#3b82f6" : "#141414"}
                     />
                   </Group>
-                  {/* Dimension lines for room sides */}
-                  {room.points.map((p, i) => {
+                  {/* Dimension lines for room sides - Only show when selected to avoid duplication with walls */}
+                  {isSelected && room.points.map((p, i) => {
                     const nextP = room.points[(i + 1) % room.points.length];
                     const dist = getDistance(p, nextP) / (project.gridSize * 2);
                     const mid = getMidpoint(p, nextP);
@@ -2072,6 +2226,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               <Group 
                 key={wall.id} 
                 onClick={(e) => { e.cancelBubble = true; onSelect([wall.id]); }}
+                onDblClick={(e) => { e.cancelBubble = true; onSelect([wall.id]); onOpenProperties(); }}
                 draggable={activeTool === ToolType.SELECT && isSelected}
                 onDragEnd={(e) => handleWallDragEnd(wall.id, e)}
               >
@@ -2146,6 +2301,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               draggable={activeTool === ToolType.SELECT}
               onDragEnd={(e) => handleStairsDragEnd(item.id, e)}
               onClick={(e) => { e.cancelBubble = true; onSelect([item.id]); }}
+              onDblClick={(e) => { e.cancelBubble = true; onSelect([item.id]); onOpenProperties(); }}
             >
               {renderStairsItem(item)}
               {selectedIds.includes(item.id) && (
@@ -2177,6 +2333,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               onDragStart={(e) => { e.cancelBubble = true; onSelect([item.id]); }}
               onDragEnd={(e) => handleFurnitureDragEnd(item.id, e)}
               onClick={(e) => { e.cancelBubble = true; onSelect([item.id]); }}
+              onDblClick={(e) => { e.cancelBubble = true; onSelect([item.id]); onOpenProperties(); }}
             >
               {renderFurnitureItem(item)}
               {selectedIds.includes(item.id) && (

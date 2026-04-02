@@ -1,5 +1,6 @@
 import { Floor, Wall, Opening, Furniture, Stairs, StairsType, Project } from "../types";
 import jsPDF from "jspdf";
+import Konva from "konva";
 import { calculateArea } from "./utils";
 
 /**
@@ -79,13 +80,13 @@ export function generateDXF(floor: Floor, pixelsPerMeter: number): string {
 /**
  * Triggers a download of the DXF file.
  */
-export function downloadDXF(floor: Floor, pixelsPerMeter: number, filename: string = "plano.dxf") {
+export function downloadDXF(floor: Floor, pixelsPerMeter: number, filename: string = "AuraNook_plano.dxf") {
   const dxfContent = generateDXF(floor, pixelsPerMeter);
   const blob = new Blob([dxfContent], { type: "application/dxf" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = filename;
+  link.download = filename.startsWith("AuraNook") ? filename : `AuraNook_${filename}`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -98,13 +99,15 @@ export function downloadDXF(floor: Floor, pixelsPerMeter: number, filename: stri
  */
 export async function downloadPDF(
   stage: any, 
-  filename: string = "plano.pdf", 
+  filename: string = "AuraNook_plano.pdf", 
   options: { showGrid: boolean; showDimensions: boolean; format: string },
   pixelsPerMeter: number,
   project: Project,
   updateProject: (updates: Partial<Project>) => void
 ) {
   if (!stage) return;
+
+  const finalFilename = filename.startsWith("AuraNook") ? filename : `AuraNook_${filename}`;
 
   const originalFloorId = project.currentFloorId;
   const originalShowGhostFloors = project.showGhostFloors;
@@ -189,23 +192,23 @@ export async function downloadPDF(
     dimensionsLayers.forEach((l: any) => l.visible(options.showDimensions));
 
     // Add a temporary graphic scale
-    const scaleGroup = new (window as any).Konva.Group({
+    const scaleGroup = new Konva.Group({
       x: exportX + 50,
       y: exportY + exportHeight - 50,
       name: 'temp-scale'
     });
 
     const scaleWidth = pixelsPerMeter;
-    const scaleLine = new (window as any).Konva.Line({
+    const scaleLine = new Konva.Line({
       points: [0, 0, scaleWidth, 0],
       stroke: '#141414',
       strokeWidth: 2
     });
 
-    const tick1 = new (window as any).Konva.Line({ points: [0, -5, 0, 5], stroke: '#141414', strokeWidth: 2 });
-    const tick2 = new (window as any).Konva.Line({ points: [scaleWidth, -5, scaleWidth, 5], stroke: '#141414', strokeWidth: 2 });
+    const tick1 = new Konva.Line({ points: [0, -5, 0, 5], stroke: '#141414', strokeWidth: 2 });
+    const tick2 = new Konva.Line({ points: [scaleWidth, -5, scaleWidth, 5], stroke: '#141414', strokeWidth: 2 });
     
-    const text = new (window as any).Konva.Text({
+    const text = new Konva.Text({
       text: '1m',
       fontSize: 12,
       x: scaleWidth / 2 - 10,
@@ -290,9 +293,137 @@ export async function downloadPDF(
     stage.draw();
   }
 
-  pdf.save(filename);
+  pdf.save(finalFilename);
   
   // Restore original floor and ghost floors state
   updateProject({ currentFloorId: originalFloorId, showGhostFloors: originalShowGhostFloors });
+}
+
+/**
+ * Triggers a PNG download of the current floor with a watermark.
+ */
+export async function downloadPNG(
+  stage: any,
+  filename: string = "AuraNook_plano.png",
+  options: { showGrid: boolean; showDimensions: boolean },
+  pixelsPerMeter: number,
+  project: Project
+) {
+  if (!stage) return;
+
+  const finalFilename = filename.startsWith("AuraNook") ? filename : `AuraNook_${filename}`;
+
+  // 1. Calculate bounding box of the current floor
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let hasContent = false;
+
+  const currentFloor = project.floors.find(f => f.id === project.currentFloorId);
+  if (!currentFloor) return;
+
+  // Check walls
+  currentFloor.walls.forEach(w => {
+    minX = Math.min(minX, w.start.x, w.end.x);
+    minY = Math.min(minY, w.start.y, w.end.y);
+    maxX = Math.max(maxX, w.start.x, w.end.x);
+    maxY = Math.max(maxY, w.start.y, w.end.y);
+    hasContent = true;
+  });
+  // Check rooms
+  currentFloor.rooms.forEach(r => {
+    r.points.forEach(p => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+      hasContent = true;
+    });
+  });
+  // Check furniture
+  currentFloor.furniture.forEach(f => {
+    const hw = (f.width / 100 * pixelsPerMeter) / 2;
+    const hh = (f.height / 100 * pixelsPerMeter) / 2;
+    minX = Math.min(minX, f.x - hw);
+    minY = Math.min(minY, f.y - hh);
+    maxX = Math.max(maxX, f.x + hw);
+    maxY = Math.max(maxY, f.y + hh);
+    hasContent = true;
+  });
+
+  const padding = 100;
+  const exportX = hasContent ? minX - padding : 0;
+  const exportY = hasContent ? minY - padding : 0;
+  const exportWidth = hasContent ? (maxX - minX) + padding * 2 : stage.width();
+  const exportHeight = hasContent ? (maxY - minY) + padding * 2 : stage.height();
+
+  const layer = stage.getLayers()[0];
+  const gridLayer = stage.findOne('.grid-layer');
+  const dimensionsLayers = stage.find('.dimensions-layer');
+
+  // Store original state
+  const originalPos = stage.position();
+  const originalScale = stage.scale();
+  const originalGridVisible = gridLayer?.visible();
+  const originalDimensionsVisibilities = dimensionsLayers.map((l: any) => l.visible());
+
+  // Reset stage transform for consistent capture
+  stage.position({ x: 0, y: 0 });
+  stage.scale({ x: 1, y: 1 });
+
+  // Apply final visibility for export
+  if (gridLayer) gridLayer.visible(options.showGrid);
+  dimensionsLayers.forEach((l: any) => l.visible(options.showDimensions));
+
+  // Add a white background for PNG export to avoid transparency issues
+  const bg = new Konva.Rect({
+    width: exportWidth,
+    height: exportHeight,
+    x: exportX,
+    y: exportY,
+    fill: 'white',
+    name: 'temp-bg'
+  });
+  layer.add(bg);
+  bg.moveToBottom();
+
+  // Add a temporary watermark
+  const watermark = new Konva.Text({
+    text: 'Diseñado con AuraNook',
+    fontSize: 24,
+    fontFamily: 'Inter',
+    fill: '#141414',
+    opacity: 0.8,
+    x: exportX + exportWidth - 300,
+    y: exportY + exportHeight - 50,
+    fontStyle: 'italic bold',
+    name: 'temp-watermark'
+  });
+  
+  layer.add(watermark);
+  stage.draw();
+
+  const dataUrl = stage.toDataURL({ 
+    pixelRatio: 2,
+    x: exportX,
+    y: exportY,
+    width: exportWidth,
+    height: exportHeight,
+    mimeType: 'image/png'
+  });
+
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = finalFilename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // Restore original state
+  stage.position(originalPos);
+  stage.scale(originalScale);
+  if (gridLayer) gridLayer.visible(originalGridVisible);
+  dimensionsLayers.forEach((l: any, i: number) => l.visible(originalDimensionsVisibilities[i]));
+  bg.destroy();
+  watermark.destroy();
+  stage.draw();
 }
 

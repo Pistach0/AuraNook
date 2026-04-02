@@ -6,13 +6,14 @@ import { cn } from '../lib/utils';
 interface PrintModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPrint: (options: { showGrid: boolean; showDimensions: boolean; format: string }) => void;
+  onPrint: (options: { showGrid: boolean; showDimensions: boolean; format: string; type: 'pdf' | 'png' }) => void;
 }
 
 export function PrintModal({ isOpen, onClose, onPrint }: PrintModalProps) {
   const [showGrid, setShowGrid] = useState(true);
   const [showDimensions, setShowDimensions] = useState(true);
   const [format, setFormat] = useState('a4');
+  const [exportType, setExportType] = useState<'pdf' | 'png'>('pdf');
 
   const formats = [
     { id: 'a4', name: 'A4 (210 x 297 mm)' },
@@ -48,24 +49,54 @@ export function PrintModal({ isOpen, onClose, onPrint }: PrintModalProps) {
             <div className="p-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Formato de Papel</p>
+                  <p className="text-sm font-medium">Tipo de Archivo</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {formats.map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => setFormat(f.id)}
-                        className={cn(
-                          "px-3 py-2 text-xs rounded-xl border transition-all text-left",
-                          format === f.id 
-                            ? "bg-[#141414] text-white border-[#141414]" 
-                            : "bg-white text-[#141414]/60 border-[#141414]/10 hover:border-[#141414]/30"
-                        )}
-                      >
-                        {f.name}
-                      </button>
-                    ))}
+                    <button
+                      onClick={() => setExportType('pdf')}
+                      className={cn(
+                        "px-3 py-2 text-xs rounded-xl border transition-all text-center",
+                        exportType === 'pdf' 
+                          ? "bg-[#141414] text-white border-[#141414]" 
+                          : "bg-white text-[#141414]/60 border-[#141414]/10 hover:border-[#141414]/30"
+                      )}
+                    >
+                      PDF (Documento)
+                    </button>
+                    <button
+                      onClick={() => setExportType('png')}
+                      className={cn(
+                        "px-3 py-2 text-xs rounded-xl border transition-all text-center",
+                        exportType === 'png' 
+                          ? "bg-[#141414] text-white border-[#141414]" 
+                          : "bg-white text-[#141414]/60 border-[#141414]/10 hover:border-[#141414]/30"
+                      )}
+                    >
+                      PNG (Imagen)
+                    </button>
                   </div>
                 </div>
+
+                {exportType === 'pdf' && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Formato de Papel</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {formats.map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => setFormat(f.id)}
+                          className={cn(
+                            "px-3 py-2 text-xs rounded-xl border transition-all text-left",
+                            format === f.id 
+                              ? "bg-[#141414] text-white border-[#141414]" 
+                              : "bg-white text-[#141414]/60 border-[#141414]/10 hover:border-[#141414]/30"
+                          )}
+                        >
+                          {f.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <label className="flex items-center justify-between cursor-pointer group pt-2">
                   <div className="flex items-center gap-3">
@@ -112,13 +143,13 @@ export function PrintModal({ isOpen, onClose, onPrint }: PrintModalProps) {
 
               <button 
                 onClick={() => {
-                  onPrint({ showGrid, showDimensions, format });
+                  onPrint({ showGrid, showDimensions, format, type: exportType });
                   onClose();
                 }}
                 className="w-full py-4 bg-[#141414] text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
               >
                 <Printer size={18} />
-                Generar PDF
+                {exportType === 'pdf' ? 'Generar PDF' : 'Exportar PNG'}
               </button>
             </div>
           </motion.div>

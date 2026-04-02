@@ -193,8 +193,22 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#141414]/10 bg-[#F9F9F7] text-center">
-          <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Planify v1.2 - Actualizado Abril 2026</p>
+        <div className="p-4 border-t border-[#141414]/10 bg-[#F9F9F7] flex items-center justify-between px-6">
+          <div className="flex gap-4">
+            <a 
+              href="mailto:aurora.n.team@gmail.com?subject=AuraNook - Informe de Error"
+              className="text-[10px] uppercase tracking-widest font-bold text-red-600 hover:underline"
+            >
+              Informar de errores
+            </a>
+            <a 
+              href="mailto:aurora.n.team@gmail.com?subject=AuraNook - Sugerencia"
+              className="text-[10px] uppercase tracking-widest font-bold text-blue-600 hover:underline"
+            >
+              Enviar sugerencias
+            </a>
+          </div>
+          <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">AuraNook v1.2 - Actualizado Abril 2026</p>
         </div>
       </div>
     </div>

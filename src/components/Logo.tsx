@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '../lib/utils';
 
 interface LogoProps {
   className?: string;
@@ -6,36 +7,17 @@ interface LogoProps {
 }
 
 export const Logo: React.FC<LogoProps> = ({ className, size = 32 }) => {
+  // Reemplaza esta URL con la ruta de tu archivo PNG propio
+  const logoSrc = "https://lh3.googleusercontent.com/u/0/d/1iOFGvvtXXOg5f7ZTlZnCz8nuluA2R-xN"; 
+
   return (
-    <svg 
+    <img 
+      src={logoSrc} 
+      alt="AuraNook Logo" 
       width={size} 
       height={size} 
-      viewBox="0 0 200 200" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      {/* House Outline */}
-      <path 
-        d="M100 20L30 80V170H170V80L100 20Z" 
-        stroke="#5A7D36" 
-        strokeWidth="12" 
-        strokeLinejoin="round"
-      />
-      {/* Inner House/Door Shape */}
-      <path 
-        d="M70 110V170H130V90L100 60L70 90" 
-        stroke="#5A7D36" 
-        strokeWidth="12" 
-        strokeLinejoin="round"
-      />
-      {/* Diagonal Line - characteristic of the provided logo */}
-      <path 
-        d="M30 80L100 150" 
-        stroke="#5A7D36" 
-        strokeWidth="12" 
-        strokeLinecap="round"
-      />
-    </svg>
+      className={cn("object-contain", className)} 
+      referrerPolicy="no-referrer"
+    />
   );
 };
