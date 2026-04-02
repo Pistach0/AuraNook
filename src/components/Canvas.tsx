@@ -512,6 +512,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           if (f.id === id) {
             // Snapping logic for the primary dragged item
             const fHeight = cmToPx(f.height); // Use height (depth) of furniture
+            const fWidth = cmToPx(f.width);
             // Snap when the edge of the furniture is within ~37.5cm (15px) of the wall
             let minDistance = fHeight / 2 + 15; 
             let foundWallId = '';
@@ -520,8 +521,11 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
             floor.walls.forEach(wall => {
               const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
-              // Apply a "stickiness" bias to the currently attached wall to prevent jumping in corners
-              const bias = (wall.id === f.attachedWallId) ? 20 : 0;
+              // Apply a dynamic "stickiness" bias to the currently attached wall to prevent jumping in corners
+              // The bias needs to be larger than the difference between width/2 and height/2
+              const dimensionDiff = Math.abs(fHeight - fWidth) / 2;
+              const bias = (wall.id === f.attachedWallId) ? dimensionDiff + 20 : 0;
+              
               if (dist - bias < minDistance) {
                 minDistance = dist - bias;
                 foundWallId = wall.id;
@@ -530,6 +534,8 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 const wdx = wall.end.x - wall.start.x;
                 const wdy = wall.end.y - wall.start.y;
                 const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
+                
+                // Allow full range of movement along the wall
                 foundOffset = Math.max(0, Math.min(1, t));
 
                 const projX = wall.start.x + foundOffset * wdx;
@@ -806,8 +812,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
             floor.walls.forEach(wall => {
               const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
-              if (dist < minDistance) {
-                minDistance = dist;
+              // Apply a dynamic "stickiness" bias to the currently attached wall to prevent jumping in corners
+              const dimensionDiff = Math.abs(sHeight - sWidth) / 2;
+              const bias = (wall.id === s.attachedWallId) ? dimensionDiff + 20 : 0;
+              
+              if (dist - bias < minDistance) {
+                minDistance = dist - bias;
                 foundWallId = wall.id;
                 
                 const wallLen = getDistance(wall.start, wall.end);
@@ -815,18 +825,9 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 const wdy = wall.end.y - wall.start.y;
                 const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
                 
-                // Snap to ends if close, but allow full range
-                let rawOffset = Math.max(0, Math.min(1, t));
-                const halfWidthOffset = (sWidth / 2) / wallLen;
+                // Allow full range of movement along the wall for stairs
+                foundOffset = Math.max(0, Math.min(1, t));
                 
-                // Allow snapping to the very ends (corners)
-                if (rawOffset < 0.1) rawOffset = halfWidthOffset;
-                else if (rawOffset > 0.9) rawOffset = 1 - halfWidthOffset;
-                // Otherwise, if it's within the "safe" range but close to the center, we could snap to center
-                // but let's just allow free movement for now as requested.
-                
-                foundOffset = rawOffset;
-
                 const projX = wall.start.x + foundOffset * wdx;
                 const projY = wall.start.y + foundOffset * wdy;
 

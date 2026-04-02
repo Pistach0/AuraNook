@@ -1,10 +1,6 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Floor, Furniture, Project } from "../types";
 
-// The platform injects GEMINI_API_KEY into process.env, but we add a fallback for local dev
-const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
-
 export interface FurnitureOptimization {
   id: string;
   x: number;
@@ -15,9 +11,14 @@ export interface FurnitureOptimization {
 export async function optimizeSpace(floor: Floor, pixelsPerMeter: number): Promise<FurnitureOptimization[]> {
   const model = "gemini-3-flash-preview";
 
+  // The platform injects GEMINI_API_KEY into process.env
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  
   if (!apiKey) {
-    throw new Error("La clave de API de Gemini no está configurada. Por favor, añádela en la configuración.");
+    throw new Error("La clave de API de Gemini no está configurada. Por favor, asegúrate de que la variable GEMINI_API_KEY esté definida.");
   }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   // Prepare a simplified representation of the floor for the AI
   const floorData = {
@@ -57,15 +58,15 @@ export async function optimizeSpace(floor: Floor, pixelsPerMeter: number): Promi
     Datos de la planta (en metros):
     ${JSON.stringify(floorData, null, 2)}
     
-    Instrucciones:
+    Instrucciones CRÍTICAS:
     1. Analiza las dimensiones de las habitaciones (rooms) y la ubicación de las paredes (walls) y aberturas (openings como puertas y ventanas).
-    2. Sugiere una nueva ubicación (x, y) y rotación para cada mueble (furniture) de modo que el espacio sea funcional, estético y respete las zonas de paso.
-    3. El sistema de coordenadas tiene el origen (0,0) en la esquina superior izquierda.
-    4. No muevas los muebles fuera de los límites de las habitaciones.
-    5. Evita bloquear puertas y ventanas.
-    6. Mantén las dimensiones originales de los muebles.
-    7. Devuelve la respuesta ÚNICAMENTE como un array de objetos JSON con el formato: { "id": string, "x": number, "y": number, "rotation": number }.
-    8. Las coordenadas (x, y) deben estar en metros.
+    2. Sugiere una nueva ubicación (x, y) y rotación para cada mueble (furniture) de modo que el espacio sea funcional y estético.
+    3. El sistema de coordenadas tiene el origen (0,0) en la esquina superior izquierda. Las coordenadas (x,y) representan el CENTRO del mueble.
+    4. NO ATRAVESAR PAREDES: Asegúrate de que los bordes del mueble (calculados usando x, y, width y height) estén completamente dentro de la habitación y no crucen ninguna pared.
+    5. NO SUPERPONER MUEBLES: Los muebles NO DEBEN SUPERPONERSE entre sí. Comprueba las dimensiones (width, height) de cada uno para asegurar que haya espacio físico entre ellos.
+    6. NO BLOQUEAR PUERTAS/VENTANAS: Deja al menos 0.8 metros de espacio libre alrededor de las aberturas (openings).
+    7. Mantén las dimensiones originales de los muebles.
+    8. Devuelve la respuesta ÚNICAMENTE como un array de objetos JSON con el formato exacto: { "id": string, "x": number, "y": number, "rotation": number }.
     9. Sé creativo pero práctico. Por ejemplo, coloca el sofá frente a la TV, la cama con la cabecera contra una pared, etc.
   `;
 
