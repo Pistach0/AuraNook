@@ -9,7 +9,7 @@ Bienvenido a **AuraNook**, la herramienta definitiva para diseñar y visualizar 
 * **Exportación Rápida:** Visualiza superficies y medidas en tiempo real.
 
 ## 🚀 Cómo empezar
-Puedes usar la aplicación directamente en: [TU-URL-DE-VERCEL-AQUÍ]
+Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
 
 ---
 ### 🛠️ Tecnología
