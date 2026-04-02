@@ -46,12 +46,9 @@ import {
   HelpCircle,
   Settings2,
   Home,
-  Sparkles,
-  Loader2,
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
-import { optimizeSpace } from './services/geminiService';
 
 import { HelpGuide } from './components/HelpGuide';
 
@@ -104,7 +101,6 @@ export default function App() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isOptimizing, setIsOptimizing] = useState(false);
   const [tempName, setTempName] = useState(project.name);
   const stageRef = useRef<any>(null);
 
@@ -122,34 +118,6 @@ export default function App() {
     }
     setIsUndoRedoAction(false);
   }, [project]);
-
-  const handleOptimizeSpace = async () => {
-    const currentFloor = project.floors.find(f => f.id === project.currentFloorId);
-    if (!currentFloor || currentFloor.furniture.length === 0) return;
-
-    setIsOptimizing(true);
-    try {
-      const pixelsPerMeter = project.gridSize * 2;
-      const optimizations = await optimizeSpace(currentFloor, pixelsPerMeter);
-      
-      updateCurrentFloor(floor => ({
-        ...floor,
-        furniture: floor.furniture.map(f => {
-          const opt = optimizations.find(o => o.id === f.id);
-          if (opt) {
-            return { ...f, x: opt.x, y: opt.y, rotation: opt.rotation };
-          }
-          return f;
-        })
-      }));
-    } catch (error: any) {
-      console.error("Failed to optimize space:", error);
-      const message = error.message || "Hubo un error al optimizar el espacio. Por favor, inténtalo de nuevo.";
-      alert(message);
-    } finally {
-      setIsOptimizing(false);
-    }
-  };
 
   const handleZoomTotal = () => {
     if (stageRef.current && stageRef.current.zoomToFit) {
@@ -812,20 +780,6 @@ export default function App() {
             >
               <Settings2 size={18} />
             </button>
-            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
-            
-            <button 
-              onClick={handleOptimizeSpace}
-              disabled={isOptimizing}
-              className={cn(
-                "p-2 rounded-full transition-all border border-transparent",
-                isOptimizing ? "bg-[#141414] text-white animate-pulse" : "hover:bg-[#141414]/10 text-purple-600"
-              )}
-              title="Optimizar mi espacio (IA)"
-            >
-              {isOptimizing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-            </button>
-
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
             
             <div className="flex items-center gap-1">

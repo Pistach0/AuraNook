@@ -90,7 +90,6 @@ export const FURNITURE_TEMPLATES = [
   { type: 'sink', name: 'Fregadero', category: 'kitchen', width: 80, height: 60 },
   { type: 'kitchen_stool', name: 'Taburete Cocina', category: 'kitchen', width: 40, height: 40 },
   { type: 'toilet', name: 'Inodoro', category: 'bathroom', width: 40, height: 70 },
-  { type: 'bidet', name: 'Bidet', category: 'bathroom', width: 40, height: 60 },
   { type: 'bathroom_sink', name: 'Lavabo', category: 'bathroom', width: 80, height: 50 },
   { type: 'bathtub', name: 'Bañera', category: 'bathroom', width: 160, height: 70 },
   { type: 'shower', name: 'Plato de Ducha', category: 'bathroom', width: 90, height: 90 },

@@ -343,14 +343,22 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
           <div className="flex items-center gap-4">
             <input 
               type="range"
-              min="0"
+              min="-5"
               max="10"
               step="1"
-              value={item.zIndex || 0}
+              value={item.zIndex !== undefined ? item.zIndex : (
+                item.type.includes('chair') || item.type.includes('stool') ? -1 :
+                item.type.includes('table') || item.type === 'desk' || item.type === 'kitchen_counter' ? 1 :
+                item.type === 'rug' ? -2 : 0
+              )}
               onChange={(e) => onUpdate({ ...item, zIndex: Number(e.target.value) })}
               className="flex-1 accent-[#141414]"
             />
-            <span className="text-xs font-bold w-4">{item.zIndex || 0}</span>
+            <span className="text-xs font-bold w-4">{item.zIndex !== undefined ? item.zIndex : (
+              item.type.includes('chair') || item.type.includes('stool') ? -1 :
+              item.type.includes('table') || item.type === 'desk' || item.type === 'kitchen_counter' ? 1 :
+              item.type === 'rug' ? -2 : 0
+            )}</span>
           </div>
           <p className="text-[10px] opacity-40 italic">Usa esto para superponer muebles (ej. sillas bajo mesa)</p>
           

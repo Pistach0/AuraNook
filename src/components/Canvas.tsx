@@ -535,8 +535,13 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 const wdy = wall.end.y - wall.start.y;
                 const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
                 
-                // Allow full range of movement along the wall
-                foundOffset = Math.max(0, Math.min(1, t));
+                // Constrain movement so the furniture doesn't stick out past the wall ends
+                const halfWidthOffset = (fWidth / 2) / wallLen;
+                if (halfWidthOffset >= 0.5) {
+                  foundOffset = 0.5;
+                } else {
+                  foundOffset = Math.max(halfWidthOffset, Math.min(1 - halfWidthOffset, t));
+                }
 
                 const projX = wall.start.x + foundOffset * wdx;
                 const projY = wall.start.y + foundOffset * wdy;
@@ -825,8 +830,13 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 const wdy = wall.end.y - wall.start.y;
                 const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
                 
-                // Allow full range of movement along the wall for stairs
-                foundOffset = Math.max(0, Math.min(1, t));
+                // Constrain movement so the stairs don't stick out past the wall ends
+                const halfWidthOffset = (sWidth / 2) / wallLen;
+                if (halfWidthOffset >= 0.5) {
+                  foundOffset = 0.5;
+                } else {
+                  foundOffset = Math.max(halfWidthOffset, Math.min(1 - halfWidthOffset, t));
+                }
                 
                 const projX = wall.start.x + foundOffset * wdx;
                 const projY = wall.start.y + foundOffset * wdy;
@@ -1071,13 +1081,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
         {f.type === 'dining_table' && (
           <Group>
-            {/* Chairs around table */}
-            {[-width/3, 0, width/3].map((off, i) => (
-              <React.Fragment key={i}>
-                <Rect x={off - 15} y={-height/2 - 15} width={30} height={20} fill="#F5F5DC" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-                <Rect x={off - 15} y={height/2 - 5} width={30} height={20} fill="#F5F5DC" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
-              </React.Fragment>
-            ))}
             {/* Table */}
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
             {/* Centerpiece */}
@@ -1166,11 +1169,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
         {f.type === 'fridge' && (
           <Group>
-            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#E5E7EB" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
-            {/* Door Split */}
-            <Line points={[-width/2, 0, width/2, 0]} stroke={strokeColor} strokeWidth={1} />
-            {/* Handles */}
-            <Rect x={width/2 - 10} y={-height/4} width={4} height={height/2} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
+            {/* Main Body */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F3F4F6" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
+            {/* Back cooling grill indicator */}
+            <Rect x={-width/2 + 2} y={-height/2 + 2} width={width - 4} height={6} fill="#D1D5DB" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
+            {/* Front Door handle (top view) */}
+            <Rect x={-width/2 + 5} y={height/2 - 6} width={width/2.5} height={4} fill="#9CA3AF" stroke={strokeColor} strokeWidth={0.5} cornerRadius={2} />
           </Group>
         )}
 
@@ -1351,6 +1355,17 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
+        {f.type === 'tv_unit' && (
+          <Group>
+            {/* Base unit */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#8B4513" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
+            {/* TV Stand */}
+            <Rect x={-15} y={-4} width={30} height={8} fill="#333333" stroke={strokeColor} strokeWidth={0.5} />
+            {/* TV Screen (Thin) */}
+            <Rect x={-width/2 + 20} y={-2} width={width - 40} height={4} fill="#1A1A1A" stroke={strokeColor} strokeWidth={1} cornerRadius={1} />
+          </Group>
+        )}
+
         {f.type === 'plant' && (
           <Group>
             {/* Shadow */}
@@ -1381,6 +1396,17 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
+        {f.type === 'kitchen_stool' && (
+          <Group>
+            {/* Base ring */}
+            <Circle x={0} y={0} radius={Math.min(width, height)/2} fill="transparent" stroke={strokeColor} strokeWidth={1} />
+            {/* Seat */}
+            <Circle x={0} y={0} radius={Math.min(width, height)/2 - 4} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} />
+            {/* Center detail */}
+            <Circle x={0} y={0} radius={Math.min(width, height)/4} fill="#D2B48C" stroke={strokeColor} strokeWidth={0.5} />
+          </Group>
+        )}
+
         {f.type === 'car' && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#A9A9A9" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={20} />
@@ -1406,7 +1432,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         )}
 
         {/* Fallback for any other furniture type */}
-        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant'].includes(f.type) && (
+        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool'].includes(f.type) && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5F5" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
             <Line points={[-width/2, -height/2, width/2, height/2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
@@ -1664,8 +1690,19 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           rotation={angle}
           draggable={activeTool === ToolType.SELECT}
           onDragEnd={(e) => handleOpeningDragEnd(opening.id, e)}
-          onClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); }}
-          onDblClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); onOpenProperties(); }}
+          onClick={(e) => { 
+            if (activeTool === ToolType.SELECT) {
+              e.cancelBubble = true; 
+              onSelect([opening.id]); 
+            }
+          }}
+          onDblClick={(e) => { 
+            if (activeTool === ToolType.SELECT) {
+              e.cancelBubble = true; 
+              onSelect([opening.id]); 
+              onOpenProperties(); 
+            }
+          }}
         >
           <Rect
             x={-width/2}
@@ -1739,8 +1776,19 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         rotation={angle} 
         scaleX={opening.scaleX || 1}
         scaleY={opening.scaleY || 1}
-        onClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); }}
-        onDblClick={(e) => { e.cancelBubble = true; onSelect([opening.id]); onOpenProperties(); }}
+        onClick={(e) => { 
+          if (activeTool === ToolType.SELECT) {
+            e.cancelBubble = true; 
+            onSelect([opening.id]); 
+          }
+        }}
+        onDblClick={(e) => { 
+          if (activeTool === ToolType.SELECT) {
+            e.cancelBubble = true; 
+            onSelect([opening.id]); 
+            onOpenProperties(); 
+          }
+        }}
         draggable={activeTool === ToolType.SELECT}
         dragBoundFunc={dragBoundFunc}
         onDragEnd={(e) => handleOpeningDragEnd(opening.id, e)}
@@ -1997,8 +2045,19 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             return (
               <Group 
                 key={room.id} 
-                onClick={(e) => { e.cancelBubble = true; onSelect([room.id]); }}
-                onDblClick={(e) => { e.cancelBubble = true; onSelect([room.id]); onOpenProperties(); }}
+                onClick={(e) => { 
+                  if (activeTool === ToolType.SELECT) {
+                    e.cancelBubble = true; 
+                    onSelect([room.id]); 
+                  }
+                }}
+                onDblClick={(e) => { 
+                  if (activeTool === ToolType.SELECT) {
+                    e.cancelBubble = true; 
+                    onSelect([room.id]); 
+                    onOpenProperties(); 
+                  }
+                }}
               >
                 <Line
                   points={room.points.flatMap(p => [p.x, p.y])}
@@ -2226,8 +2285,19 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             return (
               <Group 
                 key={wall.id} 
-                onClick={(e) => { e.cancelBubble = true; onSelect([wall.id]); }}
-                onDblClick={(e) => { e.cancelBubble = true; onSelect([wall.id]); onOpenProperties(); }}
+                onClick={(e) => { 
+                  if (activeTool === ToolType.SELECT) {
+                    e.cancelBubble = true; 
+                    onSelect([wall.id]); 
+                  }
+                }}
+                onDblClick={(e) => { 
+                  if (activeTool === ToolType.SELECT) {
+                    e.cancelBubble = true; 
+                    onSelect([wall.id]); 
+                    onOpenProperties(); 
+                  }
+                }}
                 draggable={activeTool === ToolType.SELECT && isSelected}
                 onDragEnd={(e) => handleWallDragEnd(wall.id, e)}
               >
@@ -2301,26 +2371,50 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               scaleY={item.scaleY || 1}
               draggable={activeTool === ToolType.SELECT}
               onDragEnd={(e) => handleStairsDragEnd(item.id, e)}
-              onClick={(e) => { e.cancelBubble = true; onSelect([item.id]); }}
-              onDblClick={(e) => { e.cancelBubble = true; onSelect([item.id]); onOpenProperties(); }}
+              onClick={(e) => { 
+                if (activeTool === ToolType.SELECT) {
+                  e.cancelBubble = true; 
+                  onSelect([item.id]); 
+                }
+              }}
+              onDblClick={(e) => { 
+                if (activeTool === ToolType.SELECT) {
+                  e.cancelBubble = true; 
+                  onSelect([item.id]); 
+                  onOpenProperties(); 
+                }
+              }}
             >
               {renderStairsItem(item)}
               {selectedIds.includes(item.id) && (
                 <Rect
                   width={cmToPx(item.width) + 10}
-                  height={cmToPx(item.length) + 10}
+                  height={cmToPx(item.height) + 10}
                   stroke="#3b82f6"
                   strokeWidth={1}
                   dash={[5, 5]}
                   offsetX={(cmToPx(item.width) + 10) / 2}
-                  offsetY={(cmToPx(item.length) + 10) / 2}
+                  offsetY={(cmToPx(item.height) + 10) / 2}
                 />
               )}
             </Group>
           ))}
 
           {/* Furniture */}
-          {currentFloor.furniture.map((item) => (
+          {currentFloor.furniture
+            .slice()
+            .sort((a, b) => {
+              const getDefaultZIndex = (type: string) => {
+                if (type.includes('chair') || type.includes('stool')) return -1;
+                if (type.includes('table') || type === 'desk' || type === 'kitchen_counter') return 1;
+                if (type === 'rug') return -2;
+                return 0;
+              };
+              const zA = a.zIndex !== undefined ? a.zIndex : getDefaultZIndex(a.type);
+              const zB = b.zIndex !== undefined ? b.zIndex : getDefaultZIndex(b.type);
+              return zA - zB;
+            })
+            .map((item) => (
             <Group
               key={item.id}
               id={item.id}
@@ -2329,12 +2423,27 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               rotation={item.rotation}
               scaleX={item.scaleX}
               scaleY={item.scaleY}
-              zIndex={item.zIndex || 0}
               draggable={activeTool === ToolType.SELECT}
-              onDragStart={(e) => { e.cancelBubble = true; onSelect([item.id]); }}
+              onDragStart={(e) => { 
+                if (activeTool === ToolType.SELECT) {
+                  e.cancelBubble = true; 
+                  onSelect([item.id]); 
+                }
+              }}
               onDragEnd={(e) => handleFurnitureDragEnd(item.id, e)}
-              onClick={(e) => { e.cancelBubble = true; onSelect([item.id]); }}
-              onDblClick={(e) => { e.cancelBubble = true; onSelect([item.id]); onOpenProperties(); }}
+              onClick={(e) => { 
+                if (activeTool === ToolType.SELECT) {
+                  e.cancelBubble = true; 
+                  onSelect([item.id]); 
+                }
+              }}
+              onDblClick={(e) => { 
+                if (activeTool === ToolType.SELECT) {
+                  e.cancelBubble = true; 
+                  onSelect([item.id]); 
+                  onOpenProperties(); 
+                }
+              }}
             >
               {renderFurnitureItem(item)}
               {selectedIds.includes(item.id) && (
