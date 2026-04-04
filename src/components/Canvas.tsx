@@ -861,11 +861,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
                 
                 // Constrain movement so the stairs don't stick out past the wall ends
-                const halfWidthOffset = (sWidth / 2) / wallLen;
-                if (halfWidthOffset >= 0.5) {
+                // Since stairs are rotated 90 degrees, their length is along the wall
+                const halfLengthOffset = (sHeight / 2) / wallLen;
+                if (halfLengthOffset >= 0.5) {
                   foundOffset = 0.5;
                 } else {
-                  foundOffset = Math.max(halfWidthOffset, Math.min(1 - halfWidthOffset, t));
+                  foundOffset = Math.max(halfLengthOffset, Math.min(1 - halfLengthOffset, t));
                 }
                 
                 const projX = wall.start.x + foundOffset * wdx;
@@ -887,13 +888,15 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               const ny = wdx / wallLen;
               const thickness = cmToPx(wall.thickness);
               
-              newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + sHeight / 2);
-              newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + sHeight / 2);
+              // The side of the stairs should snap to the wall, so offset by sWidth / 2
+              newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + sWidth / 2);
+              newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + sWidth / 2);
               
               nearestWallId = foundWallId;
               nearestWallSide = foundSide;
               nearestWallOffset = foundOffset;
-              rotation = getAngle(wall.start, wall.end);
+              // Rotate by 90 degrees so the length runs along the wall
+              rotation = getAngle(wall.start, wall.end) + 90;
               if (foundSide === -1) rotation += 180;
             } else {
               const snapped = snapToGrid({ x: newX, y: newY });
