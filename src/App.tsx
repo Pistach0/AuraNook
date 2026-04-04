@@ -220,6 +220,12 @@ export default function App() {
         console.error('Error loading projects from localStorage', e);
       }
     }
+    
+    // Auto-zoom to fit on initial load
+    const timer = setTimeout(() => {
+      handleZoomTotal();
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   const saveProject = () => {
@@ -682,58 +688,58 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden sm:flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+        <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden sm:flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={() => setProject(p => ({ ...p, zoom: Math.max(0.2, p.zoom - 0.1) }))}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
                 title={t('app.zoomOut')}
               >
-                <ZoomOut size={14} />
+                <ZoomOut size={16} />
               </button>
-              <span className="text-[9px] font-bold w-8 text-center">{Math.round(project.zoom * 100)}%</span>
+              <span className="text-[10px] font-bold w-8 text-center">{Math.round(project.zoom * 100)}%</span>
               <button 
                 onClick={() => setProject(p => ({ ...p, zoom: Math.min(3, p.zoom + 0.1) }))}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
                 title={t('app.zoomIn')}
               >
-                <ZoomIn size={14} />
+                <ZoomIn size={16} />
               </button>
-              <div className="w-px h-3 bg-[#141414]/10 mx-0.5" />
+              <div className="w-px h-4 bg-[#141414]/10 mx-1" />
               <button 
                 onClick={handleZoomTotal}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
                 title={t('app.zoomFit')}
               >
-                <Maximize2 size={14} />
+                <Maximize2 size={16} />
               </button>
-              <div className="w-px h-3 bg-[#141414]/10 mx-0.5" />
+              <div className="w-px h-4 bg-[#141414]/10 mx-1" />
               <button 
                 onClick={handleToggleFullscreen}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
                 title={isFullscreen ? t('app.exitFullscreen') : t('app.fullscreen')}
               >
-                {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+                {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
               </button>
             </div>
 
-            <div className="flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={() => setShowClearConfirm(true)}
                 className="p-1.5 hover:bg-red-100 rounded-full transition-colors text-red-600"
                 title={t('app.clearFloor')}
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} />
               </button>
             </div>
 
-            <div className="flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={handleExportDXF}
                 className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors text-[#141414]/60 hover:text-[#141414]"
                 title={t('app.exportDXF')}
               >
-                <FileCode size={14} />
+                <FileCode size={16} />
               </button>
               <button 
                 onClick={() => {
@@ -802,7 +808,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={() => setProject(p => ({ ...p, showGhostFloors: !p.showGhostFloors }))}
                 className={cn(
@@ -813,7 +819,7 @@ export default function App() {
                 )}
                 title={project.showGhostFloors ? t('app.hideGhost') : t('app.showGhost')}
               >
-                <Layers size={14} />
+                <Layers size={16} />
               </button>
               
               {project.showGhostFloors && project.floors.length > 1 && (
@@ -833,41 +839,41 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={undo}
                 disabled={historyIndex <= 0}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 title={t('app.undo')}
               >
-                <Undo2 size={14} />
+                <Undo2 size={16} />
               </button>
               <button 
                 onClick={redo}
                 disabled={historyIndex >= history.length - 1}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 title={t('app.redo')}
               >
-                <Redo2 size={14} />
+                <Redo2 size={16} />
               </button>
             </div>
 
-            <div className="flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-2"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-3"
                 title="Cambiar Idioma / Change Language"
               >
-                <Globe size={14} />
+                <Globe size={16} />
                 <span className="text-[10px] font-bold uppercase">{language}</span>
               </button>
-              <div className="w-px h-3 bg-[#141414]/10 mx-0.5" />
+              <div className="w-px h-4 bg-[#141414]/10 mx-1" />
               <button 
                 onClick={() => setUnit(unit === 'm' ? 'in' : 'm')}
-                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-2"
+                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-3"
                 title="Cambiar Unidad / Change Unit"
               >
-                <Ruler size={14} />
+                <Ruler size={16} />
                 <span className="text-[10px] font-bold uppercase">{unit === 'm' ? 'm' : 'in'}</span>
               </button>
             </div>

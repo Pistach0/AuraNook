@@ -159,6 +159,8 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     getStage: () => stageRef.current
   }));
 
+  const [draggingRoomVertex, setDraggingRoomVertex] = useState<{roomId: string, pointIndex: number, pos: Point} | null>(null);
+
   const snapToGrid = (point: Point): Point => {
     const size = project.gridSize / 2;
     return {
@@ -648,14 +650,30 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       return {
         ...floor,
         walls: updatedWalls,
-        rooms: floor.rooms.map(r => ({
-          ...r,
-          points: r.points.map(p => {
-            if (getDistance(p, oldStart) < 2) return newStart;
-            if (getDistance(p, oldEnd) < 2) return newEnd;
-            return p;
-          })
-        })),
+        rooms: floor.rooms.map(r => {
+          let containsWall = false;
+          for (let i = 0; i < r.points.length; i++) {
+            const a = r.points[i];
+            const b = r.points[(i + 1) % r.points.length];
+            if ((getDistance(a, oldStart) < 2 && getDistance(b, oldEnd) < 2) ||
+                (getDistance(a, oldEnd) < 2 && getDistance(b, oldStart) < 2)) {
+              containsWall = true;
+              break;
+            }
+          }
+
+          if (containsWall) {
+            return {
+              ...r,
+              points: r.points.map(p => {
+                if (getDistance(p, oldStart) < 2) return newStart;
+                if (getDistance(p, oldEnd) < 2) return newEnd;
+                return p;
+              })
+            };
+          }
+          return r;
+        }),
         furniture: floor.furniture.map(f => {
           const wall = updatedWalls.find(w => w.id === f.attachedWallId);
           if (wall) {
@@ -707,7 +725,16 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     e.currentTarget.position({ x: 0, y: 0 });
   };
 
+  const handleRoomVertexDragMove = (roomId: string, pointIndex: number, e: any) => {
+    setDraggingRoomVertex({
+      roomId,
+      pointIndex,
+      pos: { x: e.target.x(), y: e.target.y() }
+    });
+  };
+
   const handleRoomVertexDragEnd = (roomId: string, pointIndex: number, e: any) => {
+    setDraggingRoomVertex(null);
     const newPos = snapToGrid({ x: e.target.x(), y: e.target.y() });
     
     updateCurrentFloor(floor => {
@@ -715,8 +742,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       if (!room) return floor;
 
       const oldPoint = room.points[pointIndex];
-      const newPoints = [...room.points];
-      newPoints[pointIndex] = newPos;
 
       const updatedWalls = floor.walls.map(w => {
         let updatedW = { ...w };
@@ -727,7 +752,10 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
       return {
         ...floor,
-        rooms: floor.rooms.map(r => r.id === roomId ? { ...r, points: newPoints } : r),
+        rooms: floor.rooms.map(r => ({
+          ...r,
+          points: r.points.map(p => getDistance(p, oldPoint) < 2 ? newPos : p)
+        })),
         walls: updatedWalls,
         furniture: floor.furniture.map(f => {
           const wall = updatedWalls.find(w => w.id === f.attachedWallId);
@@ -2080,7 +2108,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 }}
               >
                 <Line
-                  points={room.points.flatMap(p => [p.x, p.y])}
+                  points={room.points.flatMap((p, i) => {
+                    if (draggingRoomVertex && draggingRoomVertex.roomId === room.id && draggingRoomVertex.pointIndex === i) {
+                      return [draggingRoomVertex.pos.x, draggingRoomVertex.pos.y];
+                    }
+                    return [p.x, p.y];
+                  })}
                   fill={getFillColor(room.color)}
                   opacity={0.8}
                   closed
@@ -2110,9 +2143,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                   {/* Dimension lines for room sides - Only show when selected to avoid duplication with walls */}
                   {isSelected && room.points.map((p, i) => {
                     const nextP = room.points[(i + 1) % room.points.length];
-                    const dist = getDistance(p, nextP);
-                    const mid = getMidpoint(p, nextP);
-                    const angle = getAngle(p, nextP);
+                    const currentP = (draggingRoomVertex && draggingRoomVertex.roomId === room.id && draggingRoomVertex.pointIndex === i) ? draggingRoomVertex.pos : p;
+                    const nextCurrentP = (draggingRoomVertex && draggingRoomVertex.roomId === room.id && draggingRoomVertex.pointIndex === ((i + 1) % room.points.length)) ? draggingRoomVertex.pos : nextP;
+                    
+                    const dist = getDistance(currentP, nextCurrentP);
+                    const mid = getMidpoint(currentP, nextCurrentP);
+                    const angle = getAngle(currentP, nextCurrentP);
                     return (
                       <Text
                         key={`${room.id}-dim-${i}`}
@@ -2139,7 +2175,14 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                       stroke="#3b82f6"
                       strokeWidth={2}
                       draggable
-                      onDragEnd={(e) => handleRoomVertexDragEnd(room.id, i, e)}
+                      onDragMove={(e) => handleRoomVertexDragMove(room.id, i, e)}
+                      onDragEnd={(e) => {
+                        handleRoomVertexDragEnd(room.id, i, e);
+                        // Reset the internal position of the circle to match the prop
+                        // in case the snapToGrid doesn't change the actual React state
+                        e.target.x(p.x);
+                        e.target.y(p.y);
+                      }}
                     />
                   ))}
                 </Group>

@@ -16,7 +16,15 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('planify_language');
-    return (saved as Language) || 'es';
+    if (saved) return saved as Language;
+    
+    // Detect browser language
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      const browserLang = navigator.language.toLowerCase();
+      if (browserLang.startsWith('en')) return 'en';
+      if (browserLang.startsWith('es')) return 'es';
+    }
+    return 'es';
   });
 
   const [unit, setUnit] = useState<Unit>(() => {

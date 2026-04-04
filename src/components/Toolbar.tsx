@@ -79,7 +79,7 @@ export function Toolbar({ mode, setMode, activeTool, setActiveTool, activeCatego
             )}
             title={tool.label}
           >
-            <tool.icon size={20} />
+            <tool.icon size={20} className="mr-0.5" />
           </button>
         ))}
 
@@ -105,7 +105,7 @@ export function Toolbar({ mode, setMode, activeTool, setActiveTool, activeCatego
                 )}
                 title={t(`furniture.categories.${cat.id}`)}
               >
-                {cat.icon}
+                <span className="mr-0.5">{cat.icon}</span>
               </button>
             ))}
           </div>
