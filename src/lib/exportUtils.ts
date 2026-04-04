@@ -100,10 +100,13 @@ export function downloadDXF(floor: Floor, pixelsPerMeter: number, filename: stri
 export async function downloadPDF(
   stage: any, 
   filename: string = "AuraNook_plano.pdf", 
-  options: { showGrid: boolean; showDimensions: boolean; format: string },
+  options: { showGrid: boolean; showDimensions: boolean; format: string; scale: string },
   pixelsPerMeter: number,
   project: Project,
-  updateProject: (updates: Partial<Project>) => void
+  updateProject: (updates: Partial<Project>) => void,
+  t: (key: string) => string,
+  formatMeasurement: (pixels: number, pixelsPerMeter: number) => string,
+  unit: 'm' | 'in'
 ) {
   if (!stage) return;
 
@@ -137,8 +140,8 @@ export async function downloadPDF(
     });
     // Check furniture
     floor.furniture.forEach(f => {
-      const hw = f.width / 2;
-      const hh = f.height / 2;
+      const hw = (f.width / 100 * pixelsPerMeter) / 2;
+      const hh = (f.height / 100 * pixelsPerMeter) / 2;
       minX = Math.min(minX, f.x - hw);
       minY = Math.min(minY, f.y - hh);
       maxX = Math.max(maxX, f.x + hw);
@@ -155,14 +158,14 @@ export async function downloadPDF(
 
   const pdf = new jsPDF({
     orientation: "landscape",
-    unit: "px",
+    unit: "mm",
   });
 
-  // Paper formats in points (72 DPI)
+  // Paper formats in mm
   const paperSizes: Record<string, [number, number]> = {
-    'a4': [595.28, 841.89],
-    'a3': [841.89, 1190.55],
-    'a2': [1190.55, 1683.78],
+    'a4': [210, 297],
+    'a3': [297, 420],
+    'a2': [420, 594],
   };
 
   for (let i = 0; i < project.floors.length; i++) {
@@ -180,50 +183,40 @@ export async function downloadPDF(
     // Store original state
     const originalPos = stage.position();
     const originalScale = stage.scale();
+    const originalWidth = stage.width();
+    const originalHeight = stage.height();
     const originalGridVisible = gridLayer?.visible();
     const originalDimensionsVisibilities = dimensionsLayers.map((l: any) => l.visible());
 
     // Reset stage transform for consistent measurement and capture
-    stage.position({ x: 0, y: 0 });
+    // By resizing the stage to the export area, we prevent Konva/Canvas from clipping off-screen shapes
+    stage.width(exportWidth);
+    stage.height(exportHeight);
+    stage.position({ x: -exportX, y: -exportY });
     stage.scale({ x: 1, y: 1 });
 
     // Apply final visibility for export
     if (gridLayer) gridLayer.visible(options.showGrid);
     dimensionsLayers.forEach((l: any) => l.visible(options.showDimensions));
 
-    // Add a temporary graphic scale
-    const scaleGroup = new Konva.Group({
-      x: exportX + 50,
-      y: exportY + exportHeight - 50,
-      name: 'temp-scale'
+    // Add a white background for PDF export to avoid transparency issues
+    const bg = new Konva.Rect({
+      width: exportWidth,
+      height: exportHeight,
+      x: exportX,
+      y: exportY,
+      fill: 'white',
+      name: 'temp-bg'
     });
+    layer.add(bg);
+    bg.moveToBottom();
 
-    const scaleWidth = pixelsPerMeter;
-    const scaleLine = new Konva.Line({
-      points: [0, 0, scaleWidth, 0],
-      stroke: '#141414',
-      strokeWidth: 2
-    });
-
-    const tick1 = new Konva.Line({ points: [0, -5, 0, 5], stroke: '#141414', strokeWidth: 2 });
-    const tick2 = new Konva.Line({ points: [scaleWidth, -5, scaleWidth, 5], stroke: '#141414', strokeWidth: 2 });
-    
-    const text = new Konva.Text({
-      text: '1m',
-      fontSize: 12,
-      x: scaleWidth / 2 - 10,
-      y: 10,
-      fill: '#141414'
-    });
-
-    scaleGroup.add(scaleLine, tick1, tick2, text);
-    layer.add(scaleGroup);
     stage.draw();
 
     const dataUrl = stage.toDataURL({ 
       pixelRatio: 2,
-      x: exportX,
-      y: exportY,
+      x: 0,
+      y: 0,
       width: exportWidth,
       height: exportHeight
     });
@@ -252,44 +245,145 @@ export async function downloadPDF(
       (pdf as any).internal.pageSize.height = pdfHeight;
     }
 
-    // Calculate image dimensions to fit the page while maintaining aspect ratio
+    // Calculate image dimensions
+    const tbHeight = 12; // Height of the horizontal title block
+    const safeX = 10;
+    const safeY = 10;
+    const safeWidth = pdfWidth - 20;
+    const safeHeight = pdfHeight - 20 - tbHeight; // Leave room for cajetín at the bottom
+
     const imgAspectRatio = exportWidth / exportHeight;
-    const pdfAspectRatio = pdfWidth / pdfHeight;
+    const pdfAspectRatio = safeWidth / safeHeight;
     
     let finalImgWidth, finalImgHeight;
-    if (imgAspectRatio > pdfAspectRatio) {
-      finalImgWidth = pdfWidth;
-      finalImgHeight = pdfWidth / imgAspectRatio;
+
+    if (options.scale !== 'auto') {
+      const scaleFactor = parseInt(options.scale, 10);
+      const realWidthMeters = exportWidth / pixelsPerMeter;
+      // realWidthMeters * 1000 gives mm. Then divide by scaleFactor.
+      finalImgWidth = (realWidthMeters * 1000) / scaleFactor;
+      finalImgHeight = finalImgWidth / imgAspectRatio;
     } else {
-      finalImgHeight = pdfHeight;
-      finalImgWidth = pdfHeight * imgAspectRatio;
+      // Fit to safe area
+      if (imgAspectRatio > pdfAspectRatio) {
+        finalImgWidth = safeWidth;
+        finalImgHeight = safeWidth / imgAspectRatio;
+      } else {
+        finalImgHeight = safeHeight;
+        finalImgWidth = safeHeight * imgAspectRatio;
+      }
     }
 
-    // Center image on page
-    const xOffset = (pdfWidth - finalImgWidth) / 2;
-    const yOffset = (pdfHeight - finalImgHeight) / 2;
+    // Center image on safe area
+    const xOffset = safeX + (safeWidth - finalImgWidth) / 2;
+    const yOffset = safeY + (safeHeight - finalImgHeight) / 2;
 
     pdf.addImage(dataUrl, "PNG", xOffset, yOffset, finalImgWidth, finalImgHeight);
 
-    // Add floor name and area
-    const floorArea = floor.rooms.reduce((acc, room) => acc + calculateArea(room.points, pixelsPerMeter), 0);
-    pdf.setFontSize(14);
-    pdf.setTextColor(20, 20, 20);
-    pdf.text(`${floor.name}`, xOffset + 20, yOffset + 30);
-    pdf.setFontSize(10);
-    pdf.text(`Superficie: ${floorArea.toFixed(2)} m²`, xOffset + 20, yOffset + 45);
+    // Draw 1cm border around the whole page
+    pdf.setDrawColor(20, 20, 20);
+    pdf.setLineWidth(0.5);
+    pdf.rect(10, 10, pdfWidth - 20, pdfHeight - 20);
 
-    // Watermark
+    // Draw Title Block (Cajetín) - Horizontal strip
+    const tbX = 10;
+    const tbY = pdfHeight - 10 - tbHeight;
+    const tbWidth = pdfWidth - 20;
+    
+    // Top line of the title block
+    pdf.line(tbX, tbY, tbX + tbWidth, tbY);
+    
+    // Calculate section widths
+    const wWatermark = 25;
+    const wGraphScale = 40;
+    const wScaleText = 25;
+    const wArea = 30;
+    const wFixed = wWatermark + wGraphScale + wScaleText + wArea;
+    const wRemaining = tbWidth - wFixed;
+    const wProject = wRemaining * 0.55;
+    const wFloor = wRemaining * 0.45;
+
+    const xProject = tbX;
+    const xFloor = xProject + wProject;
+    const xArea = xFloor + wFloor;
+    const xScaleText = xArea + wArea;
+    const xGraphScale = xScaleText + wScaleText;
+    const xWatermark = xGraphScale + wGraphScale;
+
+    // Draw vertical separators
+    pdf.line(xFloor, tbY, xFloor, tbY + tbHeight);
+    pdf.line(xArea, tbY, xArea, tbY + tbHeight);
+    pdf.line(xScaleText, tbY, xScaleText, tbY + tbHeight);
+    pdf.line(xGraphScale, tbY, xGraphScale, tbY + tbHeight);
+    pdf.line(xWatermark, tbY, xWatermark, tbY + tbHeight);
+
+    // Title Block Content
+    const textY = tbY + 8; // Vertical center for text
+    pdf.setTextColor(20, 20, 20);
+    
+    // 1. Project Name
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    let projectName = project.name || t('app.untitledProject');
+    if (projectName.length > 30) projectName = projectName.substring(0, 27) + "...";
+    pdf.text(projectName, xProject + 2, textY);
+    
+    // 2. Floor Name
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "normal");
+    let floorName = floor.name;
+    if (floorName.length > 25) floorName = floorName.substring(0, 22) + "...";
+    pdf.text(floorName, xFloor + 2, textY);
+
+    // 3. Area
+    const floorArea = floor.rooms.reduce((acc, room) => acc + calculateArea(room.points, pixelsPerMeter), 0);
+    const displayArea = unit === 'in' ? (floorArea * 10.7639).toFixed(2) + ' sq ft' : floorArea.toFixed(2) + ' m²';
+    pdf.text(`${t('app.area')}: ${displayArea}`, xArea + 2, textY);
+    
+    // 4. Scale Text
+    const scaleText = options.scale === 'auto' ? `${t('print.scale')}: ${t('print.autoFit')}` : `${t('print.scale')}: 1:${options.scale}`;
+    pdf.text(scaleText, xScaleText + 2, textY);
+
+    // 5. Graphical Scale
+    const realWidthMeters = exportWidth / pixelsPerMeter;
+    const mmPerMeter = finalImgWidth / realWidthMeters;
+    
+    // If mmPerMeter is too large for the box (e.g. > 35mm), draw a 0.5m scale instead
+    let scaleLengthMeters = 1;
+    let scaleLengthMm = mmPerMeter;
+    let scaleLabel = "1m";
+    
+    if (scaleLengthMm > 35) {
+      scaleLengthMeters = 0.5;
+      scaleLengthMm = mmPerMeter / 2;
+      scaleLabel = "0.5m";
+    }
+    
+    const scaleLineX = xGraphScale + (wGraphScale - scaleLengthMm) / 2; // Center in section
+    const scaleLineY = tbY + 8;
+    
+    pdf.setLineWidth(0.5);
+    pdf.line(scaleLineX, scaleLineY, scaleLineX + scaleLengthMm, scaleLineY);
+    pdf.line(scaleLineX, scaleLineY - 1.5, scaleLineX, scaleLineY + 1.5);
+    pdf.line(scaleLineX + scaleLengthMm, scaleLineY - 1.5, scaleLineX + scaleLengthMm, scaleLineY + 1.5);
+    
+    pdf.setFontSize(7);
+    pdf.text(scaleLabel, scaleLineX + scaleLengthMm / 2, scaleLineY - 2, { align: "center" });
+    
+    // 6. Watermark
     pdf.setFontSize(8);
     pdf.setTextColor(150, 150, 150);
-    pdf.text("Diseñado con AuraNook", pdfWidth - 100, pdfHeight - 15);
+    pdf.setFont("helvetica", "italic");
+    pdf.text("AuraNook", xWatermark + wWatermark / 2, textY, { align: "center" });
 
     // Restore original state
+    stage.width(originalWidth);
+    stage.height(originalHeight);
     stage.position(originalPos);
     stage.scale(originalScale);
     if (gridLayer) gridLayer.visible(originalGridVisible);
     dimensionsLayers.forEach((l: any, i: number) => l.visible(originalDimensionsVisibilities[i]));
-    scaleGroup.destroy();
+    bg.destroy();
     stage.draw();
   }
 
@@ -305,9 +399,10 @@ export async function downloadPDF(
 export async function downloadPNG(
   stage: any,
   filename: string = "AuraNook_plano.png",
-  options: { showGrid: boolean; showDimensions: boolean },
+  options: { showGrid: boolean; showDimensions: boolean; scale?: string },
   pixelsPerMeter: number,
-  project: Project
+  project: Project,
+  t: (key: string) => string
 ) {
   if (!stage) return;
 
@@ -362,11 +457,15 @@ export async function downloadPNG(
   // Store original state
   const originalPos = stage.position();
   const originalScale = stage.scale();
+  const originalWidth = stage.width();
+  const originalHeight = stage.height();
   const originalGridVisible = gridLayer?.visible();
   const originalDimensionsVisibilities = dimensionsLayers.map((l: any) => l.visible());
 
   // Reset stage transform for consistent capture
-  stage.position({ x: 0, y: 0 });
+  stage.width(exportWidth);
+  stage.height(exportHeight);
+  stage.position({ x: -exportX, y: -exportY });
   stage.scale({ x: 1, y: 1 });
 
   // Apply final visibility for export
@@ -387,7 +486,7 @@ export async function downloadPNG(
 
   // Add a temporary watermark
   const watermark = new Konva.Text({
-    text: 'Diseñado con AuraNook',
+    text: t('print.watermark'),
     fontSize: 24,
     fontFamily: 'Inter',
     fill: '#141414',
@@ -403,8 +502,8 @@ export async function downloadPNG(
 
   const dataUrl = stage.toDataURL({ 
     pixelRatio: 2,
-    x: exportX,
-    y: exportY,
+    x: 0,
+    y: 0,
     width: exportWidth,
     height: exportHeight,
     mimeType: 'image/png'
@@ -418,6 +517,8 @@ export async function downloadPNG(
   document.body.removeChild(link);
 
   // Restore original state
+  stage.width(originalWidth);
+  stage.height(originalHeight);
   stage.position(originalPos);
   stage.scale(originalScale);
   if (gridLayer) gridLayer.visible(originalGridVisible);

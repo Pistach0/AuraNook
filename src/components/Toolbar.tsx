@@ -9,6 +9,7 @@ import {
   Square
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useSettings } from '../context/SettingsContext';
 
 interface ToolbarProps {
   mode: AppMode;
@@ -20,17 +21,19 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ mode, setMode, activeTool, setActiveTool, activeCategory, setActiveCategory }: ToolbarProps) {
+  const { t } = useSettings();
+
   const designTools = [
-    { id: ToolType.SELECT, icon: MousePointer2, label: 'Seleccionar' },
-    { id: ToolType.WALL, icon: PenTool, label: 'Pared' },
-    { id: ToolType.ROOM, icon: Square, label: 'Habitación' },
-    { id: ToolType.DOOR, icon: DoorOpen, label: 'Puerta' },
-    { id: ToolType.WINDOW, icon: Layout, label: 'Ventana' },
-    { id: ToolType.STAIRS, icon: StairsIcon, label: 'Escaleras' },
+    { id: ToolType.SELECT, icon: MousePointer2, label: t('toolbar.select') },
+    { id: ToolType.WALL, icon: PenTool, label: t('toolbar.wall') },
+    { id: ToolType.ROOM, icon: Square, label: t('toolbar.room') },
+    { id: ToolType.DOOR, icon: DoorOpen, label: t('toolbar.door') },
+    { id: ToolType.WINDOW, icon: Layout, label: t('toolbar.window') },
+    { id: ToolType.STAIRS, icon: StairsIcon, label: t('toolbar.stairs') },
   ];
 
   const tools = mode === AppMode.DESIGN ? designTools : [
-    { id: ToolType.SELECT, icon: MousePointer2, label: 'Seleccionar' }
+    { id: ToolType.SELECT, icon: MousePointer2, label: t('toolbar.select') }
   ];
 
   return (
@@ -44,7 +47,7 @@ export function Toolbar({ mode, setMode, activeTool, setActiveTool, activeCatego
             mode === AppMode.DESIGN ? "bg-[#141414] text-white shadow-lg" : "hover:bg-[#141414]/10"
           )}
         >
-          Diseño
+          {t('toolbar.design')}
         </button>
         <button
           onClick={() => setMode(AppMode.DECORATION)}
@@ -53,7 +56,7 @@ export function Toolbar({ mode, setMode, activeTool, setActiveTool, activeCatego
             mode === AppMode.DECORATION ? "bg-[#141414] text-white shadow-lg" : "hover:bg-[#141414]/10"
           )}
         >
-          Deco
+          {t('toolbar.decoration')}
         </button>
       </div>
 
@@ -100,7 +103,7 @@ export function Toolbar({ mode, setMode, activeTool, setActiveTool, activeCatego
                     ? "bg-[#141414] text-white border-[#141414] shadow-md scale-110" 
                     : "bg-white border-[#141414]/10 hover:border-[#141414]/30 hover:bg-[#141414]/5"
                 )}
-                title={cat.name}
+                title={t(`furniture.categories.${cat.id}`)}
               >
                 {cat.icon}
               </button>

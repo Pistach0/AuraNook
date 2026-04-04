@@ -2,6 +2,7 @@ import { Project, Floor } from '../types';
 import { Plus, ChevronDown, Edit2, Trash2, Check, X, ChevronUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useState } from 'react';
+import { useSettings } from '../context/SettingsContext';
 
 interface FloorManagerProps {
   project: Project;
@@ -12,6 +13,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [editingFloorId, setEditingFloorId] = useState<string | null>(null);
   const [tempFloorName, setTempFloorName] = useState('');
+  const { t } = useSettings();
 
   const currentFloorIndex = project.floors.findIndex(f => f.id === project.currentFloorId);
   const currentFloor = project.floors[currentFloorIndex];
@@ -75,7 +77,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
           onClick={() => goToFloor(currentFloorIndex + 1)}
           disabled={currentFloorIndex >= project.floors.length - 1}
           className="p-0.5 rounded hover:bg-[#141414]/5 disabled:opacity-20 transition-colors"
-          title="Planta Superior"
+          title={t('floorManager.moveUp')}
         >
           <ChevronUp size={14} />
         </button>
@@ -83,7 +85,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
           onClick={() => goToFloor(currentFloorIndex - 1)}
           disabled={currentFloorIndex <= 0}
           className="p-0.5 rounded hover:bg-[#141414]/5 disabled:opacity-20 transition-colors"
-          title="Planta Inferior"
+          title={t('floorManager.moveDown')}
         >
           <ChevronDown size={14} />
         </button>
@@ -154,6 +156,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
                             "p-1 rounded transition-colors",
                             project.currentFloorId === floor.id ? "hover:bg-white/20" : "hover:bg-[#141414]/10"
                           )}
+                          title={t('floorManager.renameFloor')}
                         >
                           <Edit2 size={12} />
                         </button>
@@ -164,6 +167,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
                               "p-1 rounded transition-colors text-red-500 hover:bg-red-500/10",
                               project.currentFloorId === floor.id && "text-red-300 hover:bg-white/20"
                             )}
+                            title={t('floorManager.deleteFloor')}
                           >
                             <Trash2 size={12} />
                           </button>
@@ -183,7 +187,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
                 className="flex items-center justify-center gap-1.5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-white rounded-lg transition-colors"
               >
                 <Plus size={12} />
-                Nueva Planta Superior
+                {t('floorManager.addFloor')} (Superior)
               </button>
               <button
                 onClick={() => {
@@ -193,7 +197,7 @@ export function FloorManager({ project, setProject }: FloorManagerProps) {
                 className="flex items-center justify-center gap-1.5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-white rounded-lg transition-colors"
               >
                 <Plus size={12} />
-                Nueva Planta Inferior
+                {t('floorManager.addFloor')} (Inferior)
               </button>
             </div>
           </div>

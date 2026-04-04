@@ -7,6 +7,8 @@ Bienvenido a **AuraNook**, la herramienta definitiva para diseñar y visualizar 
 * **Inteligencia Artificial:** Potenciado por Google Gemini para ayudarte en la creación de espacios.
 * **Multiplanta:** Organiza tus diseños por niveles (Planta Baja, Primera Planta, etc.).
 * **Exportación Rápida:** Visualiza superficies y medidas en tiempo real.
+* **Multilenguaje:** Soporte completo en **Español** e **Inglés**.
+* **Unidades Configurables:** Elige entre sistema métrico (cm/m) e imperial (pulgadas).
 
 ## 🚀 Cómo empezar
 Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
@@ -18,4 +20,4 @@ Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
 * **Despliegue:** Vercel
 
 ---
-#AuraNook #AuraTeam #Architecture #AIDesign #React #WebDevelopment
+#AuraNook #AuraTeam #Architecture #AIDesign #React #WebDevelopment #internationalization #multi-unit-support #imperial-units

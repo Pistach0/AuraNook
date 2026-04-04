@@ -2,6 +2,7 @@ import { FURNITURE_TEMPLATES, CATEGORIES } from '../constants';
 import { Furniture, ToolType } from '../types';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
+import { useSettings } from '../context/SettingsContext';
 
 interface FurnitureLibraryProps {
   onAddFurniture: (furniture: Furniture) => void;
@@ -10,11 +11,13 @@ interface FurnitureLibraryProps {
 
 export function FurnitureLibrary({ onAddFurniture, activeCategory }: FurnitureLibraryProps) {
   const [search, setSearch] = useState('');
+  const { t } = useSettings();
 
-  const filteredTemplates = FURNITURE_TEMPLATES.filter(f => 
-    f.name.toLowerCase().includes(search.toLowerCase()) &&
-    (!activeCategory || f.category === activeCategory)
-  );
+  const filteredTemplates = FURNITURE_TEMPLATES.filter(f => {
+    const name = t(`furniture.items.${f.type}`);
+    return name.toLowerCase().includes(search.toLowerCase()) &&
+    (!activeCategory || f.category === activeCategory);
+  });
 
   const categoriesToShow = activeCategory 
     ? CATEGORIES.filter(c => c.id === activeCategory)
@@ -27,7 +30,7 @@ export function FurnitureLibrary({ onAddFurniture, activeCategory }: FurnitureLi
           <Search size={14} className="opacity-40" />
           <input 
             type="text" 
-            placeholder="Buscar muebles..." 
+            placeholder={t('furniture.search')} 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="bg-transparent text-xs focus:outline-none w-full" 
@@ -42,7 +45,7 @@ export function FurnitureLibrary({ onAddFurniture, activeCategory }: FurnitureLi
           
           return (
             <div key={cat.id} className="mb-8">
-              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40 mb-4 px-1">{cat.name}</h3>
+              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40 mb-4 px-1">{t(`furniture.categories.${cat.id}`)}</h3>
               <div className="grid grid-cols-1 gap-2">
                 {catTemplates.map(template => (
                   <button
@@ -51,7 +54,7 @@ export function FurnitureLibrary({ onAddFurniture, activeCategory }: FurnitureLi
                       onAddFurniture({
                         id: `furniture-${Date.now()}`,
                         type: template.type,
-                        name: template.name,
+                        name: t(`furniture.items.${template.type}`),
                         x: 400, // Default center-ish
                         y: 300,
                         rotation: 0,
@@ -68,7 +71,7 @@ export function FurnitureLibrary({ onAddFurniture, activeCategory }: FurnitureLi
                       {cat.icon}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold leading-tight">{template.name}</span>
+                      <span className="text-[11px] font-bold leading-tight">{t(`furniture.items.${template.type}`)}</span>
                       <span className="text-[9px] opacity-40 uppercase tracking-wider">{template.width}x{template.height}cm</span>
                     </div>
                   </button>

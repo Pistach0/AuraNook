@@ -77,6 +77,8 @@ export const FURNITURE_TEMPLATES = [
   { type: 'tv_unit', name: 'Mueble TV', category: 'living', width: 180, height: 40 },
   { type: 'plant', name: 'Planta', category: 'living', width: 50, height: 50 },
   { type: 'dining_table', name: 'Mesa Comedor', category: 'living', width: 160, height: 90 },
+  { type: 'dining_table_round', name: 'Mesa Comedor Redonda', category: 'living', width: 120, height: 120 },
+  { type: 'coffee_table', name: 'Mesita de Centro', category: 'living', width: 100, height: 60 },
   { type: 'chair', name: 'Silla', category: 'living', width: 45, height: 45 },
   { type: 'bed_double', name: 'Cama Doble', category: 'bedroom', width: 150, height: 200 },
   { type: 'bed_single', name: 'Cama Individual', category: 'bedroom', width: 90, height: 200 },

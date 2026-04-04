@@ -31,6 +31,8 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Maximize,
+  Minimize,
   Save,
   FolderOpen,
   X,
@@ -46,9 +48,11 @@ import {
   HelpCircle,
   Settings2,
   Home,
+  Globe,
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
+import { useSettings } from './context/SettingsContext';
 
 import { HelpGuide } from './components/HelpGuide';
 
@@ -75,6 +79,8 @@ const INITIAL_PROJECT: Project = {
 };
 
 export default function App() {
+  const { t, language, setLanguage, unit, setUnit, formatMeasurement } = useSettings();
+  
   const [project, setProject] = useState<Project>(() => {
     const saved = localStorage.getItem('planify_current_project');
     if (saved) {
@@ -98,10 +104,12 @@ export default function App() {
   const [savedProjects, setSavedProjects] = useState<Project[]>([]);
   const [isProjectsListOpen, setIsProjectsListOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ image: string; width: number; height: number; pixelsPerMeter: number } | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [tempName, setTempName] = useState(project.name);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const stageRef = useRef<any>(null);
 
   // Auto-save current project and handle history
@@ -118,6 +126,26 @@ export default function App() {
     }
     setIsUndoRedoAction(false);
   }, [project]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   const handleZoomTotal = () => {
     if (stageRef.current && stageRef.current.zoomToFit) {
@@ -208,7 +236,7 @@ export default function App() {
     
     setSavedProjects(updatedProjects);
     localStorage.setItem('planify_projects', JSON.stringify(updatedProjects));
-    alert('Proyecto guardado correctamente');
+    alert(t('app.saveSuccess'));
   };
 
   const loadProject = (id: string) => {
@@ -245,7 +273,7 @@ export default function App() {
     downloadDXF(currentFloor, project.gridSize * 2, getExportFilename('dxf'));
   };
 
-  const handleExportPDF = async (options: { showGrid: boolean; showDimensions: boolean; format: string; type: 'pdf' | 'png' }) => {
+  const handleExportPDF = async (options: { showGrid: boolean; showDimensions: boolean; format: string; type: 'pdf' | 'png'; scale: string }) => {
     if (stageRef.current) {
       const stage = stageRef.current.getStage();
       if (stage) {
@@ -256,7 +284,10 @@ export default function App() {
             options, 
             project.gridSize * 2,
             project,
-            (updates) => setProject(prev => ({ ...prev, ...updates }))
+            (updates) => setProject(prev => ({ ...prev, ...updates })),
+            t,
+            formatMeasurement,
+            unit
           );
         } else {
           await downloadPNG(
@@ -264,7 +295,8 @@ export default function App() {
             getExportFilename('png'),
             options,
             project.gridSize * 2,
-            project
+            project,
+            t
           );
         }
       }
@@ -534,7 +566,7 @@ export default function App() {
         setIsPropertiesOpen(false);
       } catch (error) {
         console.error("Error al importar el proyecto:", error);
-        alert("Error al importar el archivo. Asegúrate de que sea un archivo de proyecto de AuraNook válido.");
+        alert(t('app.importError'));
       }
     };
     reader.readAsText(file);
@@ -549,7 +581,10 @@ export default function App() {
   ) : null;
 
   return (
-    <div className="flex h-screen w-full bg-[#E4E3E0] text-[#141414] font-sans overflow-hidden">
+    <div className={cn(
+      "flex h-screen w-full bg-[#E4E3E0] text-[#141414] font-sans overflow-hidden",
+      isFullscreen && "fixed inset-0 z-50"
+    )}>
       {/* Left Sidebar: Toolbar */}
       <div className={cn(
         "border-r border-[#141414] flex flex-col items-center py-6 bg-white/50 backdrop-blur-sm z-20 transition-all duration-300",
@@ -619,14 +654,14 @@ export default function App() {
               </div>
             ) : (
               <div className="flex items-center gap-2 group">
-                <h1 className="font-serif italic text-base truncate">{project.name}</h1>
+                <h1 className="font-serif italic text-base truncate">{project.name || t('app.untitledProject')}</h1>
                 <button 
                   onClick={() => {
                     setTempName(project.name);
                     setIsEditingName(true);
                   }}
                   className="p-1 opacity-0 group-hover:opacity-100 hover:bg-[#141414]/5 rounded transition-all"
-                  title="Editar nombre"
+                  title={t('app.renameFloor')}
                 >
                   <Edit2 size={12} />
                 </button>
@@ -634,8 +669,10 @@ export default function App() {
             )}
             <div className="h-4 w-px bg-[#141414]/20 shrink-0" />
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-widest opacity-40 leading-none mb-0.5">Superficie Total</span>
-              <span className="text-xs font-bold leading-none">{totalProjectArea.toFixed(2)} m²</span>
+              <span className="text-[10px] uppercase tracking-widest opacity-40 leading-none mb-0.5">{t('app.totalArea')}</span>
+              <span className="text-xs font-bold leading-none">
+                {unit === 'm' ? `${totalProjectArea.toFixed(2)} m²` : `${(totalProjectArea * 10.7639).toFixed(2)} sq ft`}
+              </span>
             </div>
             <div className="h-4 w-px bg-[#141414]/20 shrink-0" />
             <FloorManager 
@@ -650,7 +687,7 @@ export default function App() {
               <button 
                 onClick={() => setProject(p => ({ ...p, zoom: Math.max(0.2, p.zoom - 0.1) }))}
                 className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title="Zoom Out"
+                title={t('app.zoomOut')}
               >
                 <ZoomOut size={14} />
               </button>
@@ -658,7 +695,7 @@ export default function App() {
               <button 
                 onClick={() => setProject(p => ({ ...p, zoom: Math.min(3, p.zoom + 0.1) }))}
                 className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title="Zoom In"
+                title={t('app.zoomIn')}
               >
                 <ZoomIn size={14} />
               </button>
@@ -666,9 +703,17 @@ export default function App() {
               <button 
                 onClick={handleZoomTotal}
                 className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title="Zoom Total (Ajustar al plano)"
+                title={t('app.zoomFit')}
               >
                 <Maximize2 size={14} />
+              </button>
+              <div className="w-px h-3 bg-[#141414]/10 mx-0.5" />
+              <button 
+                onClick={handleToggleFullscreen}
+                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors"
+                title={isFullscreen ? t('app.exitFullscreen') : t('app.fullscreen')}
+              >
+                {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
               </button>
             </div>
 
@@ -676,7 +721,7 @@ export default function App() {
               <button 
                 onClick={() => setShowClearConfirm(true)}
                 className="p-1.5 hover:bg-red-100 rounded-full transition-colors text-red-600"
-                title="Borrar planta completa"
+                title={t('app.clearFloor')}
               >
                 <Trash2 size={14} />
               </button>
@@ -686,14 +731,72 @@ export default function App() {
               <button 
                 onClick={handleExportDXF}
                 className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors text-[#141414]/60 hover:text-[#141414]"
-                title="Exportar DXF (AutoCAD)"
+                title={t('app.exportDXF')}
               >
                 <FileCode size={14} />
               </button>
               <button 
-                onClick={() => setIsPrintModalOpen(true)}
+                onClick={() => {
+                  if (stageRef.current) {
+                    const stage = stageRef.current.getStage();
+                    if (stage) {
+                      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                      let hasContent = false;
+                      for (const floor of project.floors) {
+                        floor.walls.forEach(w => {
+                          minX = Math.min(minX, w.start.x, w.end.x);
+                          minY = Math.min(minY, w.start.y, w.end.y);
+                          maxX = Math.max(maxX, w.start.x, w.end.x);
+                          maxY = Math.max(maxY, w.start.y, w.end.y);
+                          hasContent = true;
+                        });
+                        floor.rooms.forEach(r => {
+                          r.points.forEach(p => {
+                            minX = Math.min(minX, p.x);
+                            minY = Math.min(minY, p.y);
+                            maxX = Math.max(maxX, p.x);
+                            maxY = Math.max(maxY, p.y);
+                            hasContent = true;
+                          });
+                        });
+                        floor.furniture.forEach(f => {
+                          const hw = (f.width / 100 * project.gridSize * 2) / 2;
+                          const hh = (f.height / 100 * project.gridSize * 2) / 2;
+                          minX = Math.min(minX, f.x - hw);
+                          minY = Math.min(minY, f.y - hh);
+                          maxX = Math.max(maxX, f.x + hw);
+                          maxY = Math.max(maxY, f.y + hh);
+                          hasContent = true;
+                        });
+                      }
+                      
+                      const padding = 100;
+                      const exportX = hasContent ? minX - padding : 0;
+                      const exportY = hasContent ? minY - padding : 0;
+                      const exportWidth = hasContent ? (maxX - minX) + padding * 2 : stage.width();
+                      const exportHeight = hasContent ? (maxY - minY) + padding * 2 : stage.height();
+
+                      // Generate a low-res preview of the exact export area
+                      const dataUrl = stage.toDataURL({ 
+                        pixelRatio: 0.5,
+                        x: exportX,
+                        y: exportY,
+                        width: exportWidth,
+                        height: exportHeight
+                      });
+                      
+                      setPreviewData({
+                        image: dataUrl,
+                        width: exportWidth,
+                        height: exportHeight,
+                        pixelsPerMeter: project.gridSize * 2
+                      });
+                    }
+                  }
+                  setIsPrintModalOpen(true);
+                }}
                 className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors text-[#141414]/60 hover:text-[#141414]"
-                title="Opciones de Impresión"
+                title={t('app.printOptions')}
               >
                 <Printer size={14} />
               </button>
@@ -708,7 +811,7 @@ export default function App() {
                     ? "bg-[#141414] text-white shadow-sm" 
                     : "hover:bg-[#141414]/10 text-[#141414]/60 hover:text-[#141414]"
                 )}
-                title={project.showGhostFloors ? "Ocultar otras plantas" : "Ver otras plantas (fantasma)"}
+                title={project.showGhostFloors ? t('app.hideGhost') : t('app.showGhost')}
               >
                 <Layers size={14} />
               </button>
@@ -719,7 +822,7 @@ export default function App() {
                   onChange={(e) => setProject(p => ({ ...p, ghostFloorId: e.target.value || undefined }))}
                   className="bg-transparent text-[10px] font-bold uppercase tracking-wider px-2 py-1 focus:outline-none border-l border-[#141414]/10"
                 >
-                  <option value="">Todas</option>
+                  <option value="">{t('app.allFloors')}</option>
                   {project.floors
                     .filter(f => f.id !== project.currentFloorId)
                     .map(f => (
@@ -735,7 +838,7 @@ export default function App() {
                 onClick={undo}
                 disabled={historyIndex <= 0}
                 className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Deshacer (Ctrl+Z)"
+                title={t('app.undo')}
               >
                 <Undo2 size={14} />
               </button>
@@ -743,9 +846,29 @@ export default function App() {
                 onClick={redo}
                 disabled={historyIndex >= history.length - 1}
                 className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Rehacer (Ctrl+Y)"
+                title={t('app.redo')}
               >
                 <Redo2 size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1 bg-[#141414]/5 rounded-full p-1 mr-1">
+              <button 
+                onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
+                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-2"
+                title="Cambiar Idioma / Change Language"
+              >
+                <Globe size={14} />
+                <span className="text-[10px] font-bold uppercase">{language}</span>
+              </button>
+              <div className="w-px h-3 bg-[#141414]/10 mx-0.5" />
+              <button 
+                onClick={() => setUnit(unit === 'm' ? 'in' : 'm')}
+                className="p-1 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-2"
+                title="Cambiar Unidad / Change Unit"
+              >
+                <Ruler size={14} />
+                <span className="text-[10px] font-bold uppercase">{unit === 'm' ? 'm' : 'in'}</span>
               </button>
             </div>
 
@@ -755,7 +878,7 @@ export default function App() {
                 "p-2 rounded-full transition-colors border border-transparent",
                 project.showGrid ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
               )}
-              title="Alternar Cuadrícula"
+              title={t('app.showGrid')}
             >
               <Grid3X3 size={18} />
             </button>
@@ -765,7 +888,7 @@ export default function App() {
                 "p-2 rounded-full transition-colors border border-transparent",
                 project.showDimensions ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
               )}
-              title="Alternar Acotaciones"
+              title={t('app.showDimensions')}
             >
               <Ruler size={18} />
             </button>
@@ -776,7 +899,7 @@ export default function App() {
                 "p-2 rounded-full transition-colors border border-transparent",
                 isPropertiesOpen ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
               )}
-              title="Propiedades"
+              title={t('app.settings')}
             >
               <Settings2 size={18} />
             </button>
@@ -786,11 +909,11 @@ export default function App() {
               <button 
                 onClick={handleExportProject}
                 className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
-                title="Exportar Proyecto (.json)"
+                title={t('app.exportJson')}
               >
                 <Download size={18} />
               </button>
-              <label className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors cursor-pointer" title="Importar Proyecto (.json)">
+              <label className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors cursor-pointer" title={t('app.importJson')}>
                 <Upload size={18} />
                 <input 
                   type="file" 
@@ -806,21 +929,21 @@ export default function App() {
             <button 
               onClick={saveProject}
               className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
-              title="Guardar Proyecto"
+              title={t('app.save')}
             >
               <Save size={18} />
             </button>
             <button 
               onClick={() => setIsProjectsListOpen(true)}
               className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
-              title="Mis Proyectos"
+              title={t('app.savedProjects')}
             >
               <FolderOpen size={18} />
             </button>
             <button 
               onClick={() => setIsHelpOpen(true)}
               className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
-              title="Ayuda"
+              title={t('app.help')}
             >
               <HelpCircle size={18} />
             </button>
@@ -832,20 +955,20 @@ export default function App() {
         {showClearConfirm && (
           <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm">
             <div className="bg-white p-6 rounded-2xl border border-[#141414] shadow-2xl max-w-sm w-full mx-4">
-              <h3 className="text-lg font-bold mb-2">¿Borrar planta completa?</h3>
-              <p className="text-sm text-gray-500 mb-6">Esta acción eliminará todos los muros, habitaciones y muebles de la planta actual. No se puede deshacer.</p>
+              <h3 className="text-lg font-bold mb-2">{t('app.clearFloor')}</h3>
+              <p className="text-sm text-gray-500 mb-6">{t('app.confirmClear')}</p>
               <div className="flex gap-3">
                 <button 
                   onClick={() => setShowClearConfirm(false)}
                   className="flex-1 py-2 px-4 rounded-xl border border-[#141414] text-sm font-medium hover:bg-gray-50"
                 >
-                  Cancelar
+                  {t('app.cancel')}
                 </button>
                 <button 
                   onClick={handleClearFloor}
                   className="flex-1 py-2 px-4 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700"
                 >
-                  Borrar Todo
+                  {t('app.clear')}
                 </button>
               </div>
             </div>
@@ -881,14 +1004,15 @@ export default function App() {
           isOpen={isPrintModalOpen}
           onClose={() => setIsPrintModalOpen(false)}
           onPrint={handleExportPDF}
+          previewData={previewData}
         />
 
         {/* Bottom Status Bar */}
         <footer className="h-8 border-t border-[#141414] bg-white/50 backdrop-blur-sm flex items-center justify-between px-4 text-[10px] uppercase tracking-widest opacity-60">
           <div className="flex gap-6">
-            <span>Escala: 1 Cuadro = 0.5m</span>
+            <span>{t('export.scale')}: 1 {t('properties.room')} = {unit === 'm' ? '0.5m' : '1.64ft'}</span>
             <span>Planta: {currentFloor.name}</span>
-            <span>Modo: {mode}</span>
+            <span>Modo: {t(`toolbar.${mode}`)}</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
@@ -923,11 +1047,12 @@ export default function App() {
             <div className="flex-1 p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-serif italic text-lg">
-                  {selectedIds.length > 1 ? `${selectedIds.length} Seleccionados` : 'Propiedades'}
+                  {selectedIds.length > 1 ? `${selectedIds.length} Seleccionados` : t('properties.title')}
                 </h2>
                 <button 
                   onClick={handleDeleteSelected}
                   className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                  title={t('properties.delete')}
                 >
                   <Trash2 size={18} />
                 </button>
@@ -980,7 +1105,7 @@ export default function App() {
               className="relative w-full max-w-md bg-white border border-[#141414] rounded-3xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 border-b border-[#141414]/10 flex items-center justify-between">
-                <h2 className="font-serif italic text-xl">Mis Proyectos</h2>
+                <h2 className="font-serif italic text-xl">{t('app.savedProjects')}</h2>
                 <button onClick={() => setIsProjectsListOpen(false)} className="p-2 hover:bg-[#141414]/5 rounded-full transition-colors">
                   <X size={20} />
                 </button>
@@ -989,7 +1114,7 @@ export default function App() {
                 {savedProjects.length === 0 ? (
                   <div className="py-12 text-center opacity-40">
                     <FolderOpen size={48} className="mx-auto mb-4 opacity-20" />
-                    <p className="text-sm italic">No tienes proyectos guardados</p>
+                    <p className="text-sm italic">{t('app.noSavedProjects')}</p>
                   </div>
                 ) : (
                   <div className="grid gap-2">
@@ -1008,6 +1133,7 @@ export default function App() {
                         <button 
                           onClick={(e) => deleteProject(p.id, e)}
                           className="p-2 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded-full transition-all"
+                          title={t('app.deleteProject')}
                         >
                           <Trash2 size={16} />
                         </button>

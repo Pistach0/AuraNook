@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Search, HelpCircle, BookOpen, MousePointer2, PenTool, Square, DoorOpen, Layout, ChevronUp, Layers, Grid3X3, Ruler, Maximize2, Undo2, Redo2, Save, FileCode, Printer, Trash2, Settings2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useSettings } from '../context/SettingsContext';
 
 interface HelpGuideProps {
   isOpen: boolean;
@@ -18,91 +19,105 @@ interface GuideSection {
   }[];
 }
 
-const GUIDE_SECTIONS: GuideSection[] = [
-  {
-    id: 'basics',
-    title: 'Conceptos Básicos',
-    icon: <HelpCircle size={16} />,
-    content: [
-      {
-        title: 'Navegación',
-        text: 'Usa la rueda del ratón para hacer zoom. Haz clic con el botón central (rueda) y arrastra para moverte por el plano. Haz doble clic con el botón central para ajustar el zoom a todo el plano.',
-      },
-      {
-        title: 'Selección',
-        text: 'Usa el botón izquierdo del ratón para seleccionar elementos. Puedes seleccionar varios elementos arrastrando un cuadro de selección (estilo AutoCAD). Mantén Ctrl presionado para añadir elementos a la selección actual.',
-      },
-      {
-        title: 'Eliminar',
-        text: 'Selecciona uno o varios elementos y pulsa la tecla Suprimir (Delete) para borrarlos.',
-      },
-    ],
-  },
-  {
-    id: 'tools',
-    title: 'Herramientas de Diseño',
-    icon: <PenTool size={16} />,
-    content: [
-      {
-        title: 'Muros',
-        icon: <PenTool size={14} />,
-        text: 'Haz clic para empezar un muro y vuelve a hacer clic para terminarlo. Los muros se dividen automáticamente al cruzarse. Puedes elegir entre muros interiores (10cm) y exteriores (30cm).',
-      },
-      {
-        title: 'Habitaciones',
-        icon: <Square size={14} />,
-        text: 'Haz clic para definir los vértices de una habitación. Pulsa ENTER o haz doble clic para cerrar el polígono. Puedes mover el nombre y los metros cuadrados arrastrándolos.',
-      },
-      {
-        title: 'Puertas y Ventanas',
-        icon: <DoorOpen size={14} />,
-        text: 'Selecciona un modelo y haz clic sobre un muro para colocarlo. Se centrarán automáticamente en el muro. Puedes moverlas arrastrándolas a lo largo del muro.',
-      },
-    ],
-  },
-  {
-    id: 'furniture',
-    title: 'Mobiliario y Decoración',
-    icon: <Layout size={16} />,
-    content: [
-      {
-        title: 'Colocación',
-        text: 'Selecciona un mueble de la biblioteca y haz clic en el plano para colocarlo. El mobiliario se ajustará a las caras de los muros si lo acercas lo suficiente.',
-      },
-      {
-        title: 'Ajustes',
-        text: 'Una vez seleccionado, puedes rotar el mueble, cambiar sus dimensiones o su color desde el panel de propiedades a la derecha.',
-      },
-      {
-        title: 'Capas (Z-Index)',
-        text: 'Si dos muebles se superponen, puedes usar los controles de "Capa" en el panel de propiedades para decidir cuál queda por encima.',
-      },
-    ],
-  },
-  {
-    id: 'advanced',
-    title: 'Funciones Avanzadas',
-    icon: <Settings2 size={16} />,
-    content: [
-      {
-        title: 'Gestión de Plantas',
-        icon: <Layers size={14} />,
-        text: 'Crea nuevas plantas desde el gestor de niveles. Puedes activar la vista "fantasma" para ver la planta inferior mientras diseñas la superior.',
-      },
-      {
-        title: 'Exportación',
-        icon: <FileCode size={14} />,
-        text: 'Exporta tu diseño a formato DXF para abrirlo en AutoCAD, o a PDF para imprimirlo a escala.',
-      },
-    ],
-  },
-];
-
 export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
+  const { t } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSection, setActiveSection] = useState('basics');
 
   if (!isOpen) return null;
+
+  const GUIDE_SECTIONS = [
+    {
+      id: 'basics',
+      title: t('helpGuide.sections.basics.title'),
+      icon: <HelpCircle size={16} />,
+      content: [
+        {
+          title: t('helpGuide.sections.basics.nav.title'),
+          text: t('helpGuide.sections.basics.nav.text'),
+        },
+        {
+          title: t('helpGuide.sections.basics.select.title'),
+          text: t('helpGuide.sections.basics.select.text'),
+        },
+        {
+          title: t('helpGuide.sections.basics.delete.title'),
+          text: t('helpGuide.sections.basics.delete.text'),
+        },
+      ],
+    },
+    {
+      id: 'tools',
+      title: t('helpGuide.sections.tools.title'),
+      icon: <PenTool size={16} />,
+      content: [
+        {
+          title: t('helpGuide.sections.tools.walls.title'),
+          icon: <PenTool size={14} />,
+          text: t('helpGuide.sections.tools.walls.text'),
+        },
+        {
+          title: t('helpGuide.sections.tools.moveWalls.title'),
+          icon: <MousePointer2 size={14} />,
+          text: t('helpGuide.sections.tools.moveWalls.text'),
+        },
+        {
+          title: t('helpGuide.sections.tools.rooms.title'),
+          icon: <Square size={14} />,
+          text: t('helpGuide.sections.tools.rooms.text'),
+        },
+        {
+          title: t('helpGuide.sections.tools.doors.title'),
+          icon: <DoorOpen size={14} />,
+          text: t('helpGuide.sections.tools.doors.text'),
+        },
+      ],
+    },
+    {
+      id: 'properties',
+      title: t('helpGuide.sections.properties.title'),
+      icon: <Settings2 size={16} />,
+      content: [
+        {
+          title: t('helpGuide.sections.properties.furniture.title'),
+          icon: <Layout size={14} />,
+          text: t('helpGuide.sections.properties.furniture.text'),
+        },
+        {
+          title: t('helpGuide.sections.properties.modify.title'),
+          icon: <Settings2 size={14} />,
+          text: t('helpGuide.sections.properties.modify.text'),
+        },
+        {
+          title: t('helpGuide.sections.properties.layers.title'),
+          icon: <Layers size={14} />,
+          text: t('helpGuide.sections.properties.layers.text'),
+        },
+      ],
+    },
+    {
+      id: 'advanced',
+      title: t('helpGuide.sections.advanced.title'),
+      icon: <Layers size={16} />,
+      content: [
+        {
+          title: t('helpGuide.sections.advanced.floors.title'),
+          icon: <Layers size={14} />,
+          text: t('helpGuide.sections.advanced.floors.text'),
+        },
+        {
+          title: t('helpGuide.sections.advanced.ghost.title'),
+          icon: <Layers size={14} />,
+          text: t('helpGuide.sections.advanced.ghost.text'),
+        },
+        {
+          title: t('helpGuide.sections.advanced.export.title'),
+          icon: <Printer size={14} />,
+          text: t('helpGuide.sections.advanced.export.text'),
+        },
+      ],
+    },
+  ];
 
   const filteredSections = GUIDE_SECTIONS.map(section => ({
     ...section,
@@ -123,8 +138,8 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
               <HelpCircle size={20} />
             </div>
             <div>
-              <h2 className="font-serif italic text-xl">Guía de Uso</h2>
-              <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Ayuda y Documentación</p>
+              <h2 className="font-serif italic text-xl">{t('helpGuide.title')}</h2>
+              <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{t('helpGuide.subtitle')}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-[#141414]/5 rounded-full transition-colors">
@@ -138,7 +153,7 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20" size={16} />
             <input 
               type="text" 
-              placeholder="Buscar por palabra clave (ej: 'zoom', 'muro', 'pdf')..."
+              placeholder={t('helpGuide.searchPlaceholder')}
               className="w-full bg-[#141414]/5 border-none rounded-2xl py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-[#141414]/10 transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -185,7 +200,7 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
               {filteredSections.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center opacity-40 py-20">
                   <Search size={48} className="mb-4" />
-                  <p className="text-sm font-bold">No se encontraron resultados para "{searchQuery}"</p>
+                  <p className="text-sm font-bold">{t('helpGuide.noResults')} "{searchQuery}"</p>
                 </div>
               )}
             </div>
@@ -199,16 +214,16 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
               href="mailto:aurora.n.team@gmail.com?subject=AuraNook - Informe de Error"
               className="text-[10px] uppercase tracking-widest font-bold text-red-600 hover:underline"
             >
-              Informar de errores
+              {t('helpGuide.reportBugs')}
             </a>
             <a 
               href="mailto:aurora.n.team@gmail.com?subject=AuraNook - Sugerencia"
               className="text-[10px] uppercase tracking-widest font-bold text-blue-600 hover:underline"
             >
-              Enviar sugerencias
+              {t('helpGuide.sendSuggestions')}
             </a>
           </div>
-          <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">AuraNook v1.2 - Actualizado Abril 2026</p>
+          <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{t('helpGuide.version')}</p>
         </div>
       </div>
     </div>

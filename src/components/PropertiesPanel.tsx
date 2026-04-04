@@ -1,6 +1,7 @@
 import { Wall, Room, Furniture } from '../types';
 import { RotateCcw, FlipHorizontal, Type, Palette, Maximize, Move, Plus, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useSettings } from '../context/SettingsContext';
 
 interface PropertiesPanelProps {
   item: any;
@@ -8,6 +9,18 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
+  const { t, unit } = useSettings();
+
+  const displayValue = (cm: number) => {
+    if (unit === 'in') return Number((cm / 2.54).toFixed(2));
+    return Math.round(cm);
+  };
+
+  const parseValue = (val: number) => {
+    if (unit === 'in') return val * 2.54;
+    return val;
+  };
+
   if (!item) return null;
 
   const isWall = 'start' in item;
@@ -20,10 +33,10 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
     <div className="space-y-8">
       {/* Basic Info */}
       <section>
-        <label className="block text-[10px] uppercase tracking-widest opacity-50 mb-2">Nombre / Etiqueta</label>
+        <label className="block text-[10px] uppercase tracking-widest opacity-50 mb-2">{t('properties.name')}</label>
         <input 
           type="text"
-          value={item.name || (isWall ? 'Pared' : isFurniture ? item.type : isOpening ? item.type : isStairs ? 'Escalera' : 'Habitación')}
+          value={item.name || (isWall ? t('properties.wall') : isFurniture ? t(`furniture.items.${item.type}`) : isOpening ? t(`properties.${item.type}`) : isStairs ? t('properties.stairs') : t('properties.room'))}
           onChange={(e) => onUpdate({ ...item, name: e.target.value })}
           className="w-full bg-transparent border-b border-[#141414] py-1 focus:outline-none focus:border-blue-500 font-serif italic"
         />
@@ -32,24 +45,24 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {/* Dimensions */}
       {(isFurniture || isOpening) && (
         <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Dimensiones (cm)</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.dimensions')} ({unit === 'in' ? 'in' : 'cm'})</label>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-[10px] opacity-40 block mb-1">Ancho</span>
+              <span className="text-[10px] opacity-40 block mb-1">{t('properties.width')}</span>
               <input 
                 type="number"
-                value={item.width}
-                onChange={(e) => onUpdate({ ...item, width: Number(e.target.value) })}
+                value={displayValue(item.width)}
+                onChange={(e) => onUpdate({ ...item, width: parseValue(Number(e.target.value)) })}
                 className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
               />
             </div>
             {isFurniture && (
               <div>
-                <span className="text-[10px] opacity-40 block mb-1">Largo</span>
+                <span className="text-[10px] opacity-40 block mb-1">{t('properties.length')}</span>
                 <input 
                   type="number"
-                  value={item.height}
-                  onChange={(e) => onUpdate({ ...item, height: Number(e.target.value) })}
+                  value={displayValue(item.height)}
+                  onChange={(e) => onUpdate({ ...item, height: parseValue(Number(e.target.value)) })}
                   className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
                 />
               </div>
@@ -61,20 +74,20 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {/* Door Specific */}
       {isOpening && item.type === 'door' && (
         <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Configuración Puerta</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.doorConfig')}</label>
           <div className="space-y-2">
             <div className="flex gap-2">
               <button 
                 onClick={() => onUpdate({ ...item, subType: 'simple', isDouble: false })}
                 className={cn("flex-1 py-2 text-[10px] border rounded", item.subType === 'simple' ? "bg-[#141414] text-white" : "border-[#141414]/10")}
               >
-                Simple
+                {t('properties.simple')}
               </button>
               <button 
                 onClick={() => onUpdate({ ...item, subType: 'double', isDouble: true })}
                 className={cn("flex-1 py-2 text-[10px] border rounded", item.subType === 'double' ? "bg-[#141414] text-white" : "border-[#141414]/10")}
               >
-                Doble
+                {t('properties.double')}
               </button>
             </div>
             <div className="flex gap-2">
@@ -82,13 +95,13 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
                 onClick={() => onUpdate({ ...item, openingDirection: 'left' })}
                 className={cn("flex-1 py-2 text-[10px] border rounded", item.openingDirection === 'left' ? "bg-[#141414] text-white" : "border-[#141414]/10")}
               >
-                Izquierda
+                {t('properties.left')}
               </button>
               <button 
                 onClick={() => onUpdate({ ...item, openingDirection: 'right' })}
                 className={cn("flex-1 py-2 text-[10px] border rounded", item.openingDirection === 'right' ? "bg-[#141414] text-white" : "border-[#141414]/10")}
               >
-                Derecha
+                {t('properties.right')}
               </button>
             </div>
           </div>
@@ -99,7 +112,7 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {isStairs && (
         <section className="space-y-6">
           <div className="flex items-center justify-between">
-            <label className="block text-[10px] uppercase tracking-widest opacity-50">Configuración Escalera</label>
+            <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.stairsConfig')}</label>
             <span className="text-[10px] font-bold bg-[#141414] text-white px-2 py-0.5 rounded uppercase tracking-tighter">
               {item.type}
             </span>
@@ -107,19 +120,19 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-[10px] opacity-40 block mb-1">Sentido</span>
+              <span className="text-[10px] opacity-40 block mb-1">{t('properties.direction')}</span>
               <select 
                 value={item.direction}
                 onChange={(e) => onUpdate({ ...item, direction: e.target.value as 'up' | 'down' })}
                 className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
               >
-                <option value="up">Sube</option>
-                <option value="down">Baja</option>
+                <option value="up">{t('properties.up')}</option>
+                <option value="down">{t('properties.down')}</option>
               </select>
             </div>
             {!item.flights && (
               <div>
-                <span className="text-[10px] opacity-40 block mb-1">Peldaños</span>
+                <span className="text-[10px] opacity-40 block mb-1">{t('properties.steps')}</span>
                 <input 
                   type="number"
                   value={item.steps}
@@ -133,20 +146,20 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
           {!item.flights && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <span className="text-[10px] opacity-40 block mb-1">Ancho (cm)</span>
+                <span className="text-[10px] opacity-40 block mb-1">{t('properties.width')} ({unit === 'in' ? 'in' : 'cm'})</span>
                 <input 
                   type="number"
-                  value={item.width}
-                  onChange={(e) => onUpdate({ ...item, width: Number(e.target.value) })}
+                  value={displayValue(item.width)}
+                  onChange={(e) => onUpdate({ ...item, width: parseValue(Number(e.target.value)) })}
                   className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
                 />
               </div>
               <div>
-                <span className="text-[10px] opacity-40 block mb-1">Largo (cm)</span>
+                <span className="text-[10px] opacity-40 block mb-1">{t('properties.length')} ({unit === 'in' ? 'in' : 'cm'})</span>
                 <input 
                   type="number"
-                  value={item.length}
-                  onChange={(e) => onUpdate({ ...item, length: Number(e.target.value) })}
+                  value={displayValue(item.length)}
+                  onChange={(e) => onUpdate({ ...item, length: parseValue(Number(e.target.value)) })}
                   className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
                 />
               </div>
@@ -158,34 +171,34 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
               {item.type === 'u_shaped' && (
                 <div className="grid grid-cols-2 gap-4 pb-4">
                   <div>
-                    <span className="text-[10px] opacity-40 block mb-1">Ancho Descansillo (cm)</span>
+                    <span className="text-[10px] opacity-40 block mb-1">{t('properties.landingWidth')} ({unit === 'in' ? 'in' : 'cm'})</span>
                     <input 
                       type="number"
-                      value={item.landingWidth || (item.flights?.[0]?.width || 100) * 2}
-                      onChange={(e) => onUpdate({ ...item, landingWidth: Number(e.target.value) })}
+                      value={displayValue(item.landingWidth || (item.flights?.[0]?.width || 100) * 2)}
+                      onChange={(e) => onUpdate({ ...item, landingWidth: parseValue(Number(e.target.value)) })}
                       className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] opacity-40 block mb-1">Largo Descansillo (cm)</span>
+                    <span className="text-[10px] opacity-40 block mb-1">{t('properties.landingLength')} ({unit === 'in' ? 'in' : 'cm'})</span>
                     <input 
                       type="number"
-                      value={item.landingLength || (item.flights?.[0]?.width || 100)}
-                      onChange={(e) => onUpdate({ ...item, landingLength: Number(e.target.value) })}
+                      value={displayValue(item.landingLength || (item.flights?.[0]?.width || 100))}
+                      onChange={(e) => onUpdate({ ...item, landingLength: parseValue(Number(e.target.value)) })}
                       className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
                     />
                   </div>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Tramos</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{t('properties.flights')}</span>
               </div>
               
               <div className="space-y-6">
                 {item.flights.map((flight: any, idx: number) => (
                   <div key={flight.id} className="p-3 bg-[#141414]/5 rounded-xl space-y-3 relative">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold opacity-40">Tramo {idx + 1}</span>
+                      <span className="text-[10px] font-bold opacity-40">{t('properties.flight')} {idx + 1}</span>
                       {item.type === 'multi_flight' && item.flights.length > 1 && (
                         <button 
                           onClick={() => onUpdate({ ...item, flights: item.flights.filter((f: any) => f.id !== flight.id) })}
@@ -198,33 +211,33 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
                     
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <span className="text-[9px] opacity-40 block mb-1">Ancho</span>
+                        <span className="text-[9px] opacity-40 block mb-1">{t('properties.width')}</span>
                         <input 
                           type="number"
-                          value={flight.width}
+                          value={displayValue(flight.width)}
                           onChange={(e) => {
                             const newFlights = [...item.flights];
-                            newFlights[idx] = { ...flight, width: Number(e.target.value) };
+                            newFlights[idx] = { ...flight, width: parseValue(Number(e.target.value)) };
                             onUpdate({ ...item, flights: newFlights });
                           }}
                           className="w-full bg-white rounded px-1.5 py-1 text-xs focus:outline-none"
                         />
                       </div>
                       <div>
-                        <span className="text-[9px] opacity-40 block mb-1">Largo</span>
+                        <span className="text-[9px] opacity-40 block mb-1">{t('properties.length')}</span>
                         <input 
                           type="number"
-                          value={flight.length}
+                          value={displayValue(flight.length)}
                           onChange={(e) => {
                             const newFlights = [...item.flights];
-                            newFlights[idx] = { ...flight, length: Number(e.target.value) };
+                            newFlights[idx] = { ...flight, length: parseValue(Number(e.target.value)) };
                             onUpdate({ ...item, flights: newFlights });
                           }}
                           className="w-full bg-white rounded px-1.5 py-1 text-xs focus:outline-none"
                         />
                       </div>
                       <div>
-                        <span className="text-[9px] opacity-40 block mb-1">Pasos</span>
+                        <span className="text-[9px] opacity-40 block mb-1">{t('properties.steps')}</span>
                         <input 
                           type="number"
                           value={flight.steps}
@@ -243,10 +256,10 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
                         <span className="text-[9px] opacity-40 block mb-1">X Off</span>
                         <input 
                           type="number"
-                          value={flight.x}
+                          value={displayValue(flight.x)}
                           onChange={(e) => {
                             const newFlights = [...item.flights];
-                            newFlights[idx] = { ...flight, x: Number(e.target.value) };
+                            newFlights[idx] = { ...flight, x: parseValue(Number(e.target.value)) };
                             onUpdate({ ...item, flights: newFlights });
                           }}
                           className="w-full bg-white rounded px-1.5 py-1 text-xs focus:outline-none"
@@ -256,10 +269,10 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
                         <span className="text-[9px] opacity-40 block mb-1">Y Off</span>
                         <input 
                           type="number"
-                          value={flight.y}
+                          value={displayValue(flight.y)}
                           onChange={(e) => {
                             const newFlights = [...item.flights];
-                            newFlights[idx] = { ...flight, y: Number(e.target.value) };
+                            newFlights[idx] = { ...flight, y: parseValue(Number(e.target.value)) };
                             onUpdate({ ...item, flights: newFlights });
                           }}
                           className="w-full bg-white rounded px-1.5 py-1 text-xs focus:outline-none"
@@ -290,30 +303,30 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {/* Transformations */}
       {(isFurniture || isOpening || isStairs) && (
         <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Transformación</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.transformation')}</label>
           <div className="flex gap-2">
             <button 
               onClick={() => onUpdate({ ...item, rotation: (item.rotation || 0) + 90 })}
               className="flex-1 flex items-center justify-center gap-2 py-2 border border-[#141414]/10 rounded hover:bg-[#141414]/5 transition-colors"
             >
               <RotateCcw size={14} />
-              <span className="text-xs">Rotar</span>
+              <span className="text-xs">{t('properties.rotate')}</span>
             </button>
             <button 
               onClick={() => onUpdate({ ...item, scaleX: (item.scaleX || 1) * -1 })}
               className="flex-1 flex items-center justify-center gap-2 py-2 border border-[#141414]/10 rounded hover:bg-[#141414]/5 transition-colors"
-              title="Simetría Horizontal"
+              title={t('properties.hFlipTooltip')}
             >
               <FlipHorizontal size={14} />
-              <span className="text-xs">H-Flip</span>
+              <span className="text-xs">{t('properties.hFlip')}</span>
             </button>
             <button 
               onClick={() => onUpdate({ ...item, scaleY: (item.scaleY || 1) * -1 })}
               className="flex-1 flex items-center justify-center gap-2 py-2 border border-[#141414]/10 rounded hover:bg-[#141414]/5 transition-colors"
-              title="Simetría Vertical"
+              title={t('properties.vFlipTooltip')}
             >
               <RotateCcw size={14} className="rotate-90" />
-              <span className="text-xs">V-Flip</span>
+              <span className="text-xs">{t('properties.vFlip')}</span>
             </button>
           </div>
         </section>
@@ -322,7 +335,7 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {/* Color / Style */}
       {isRoom && (
         <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Color de Suelo</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.color')}</label>
           <div className="flex gap-2 flex-wrap">
             {['#9CA3AF', '#EC4899', '#22C55E', '#3B82F6', '#F59E0B', '#8B5CF6'].map(color => (
               <button
@@ -339,7 +352,7 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {/* Furniture Specific */}
       {isFurniture && (
         <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Capa (Z-Index)</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.layer')}</label>
           <div className="flex items-center gap-4">
             <input 
               type="range"
@@ -360,20 +373,20 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
               item.type === 'rug' ? -2 : 0
             )}</span>
           </div>
-          <p className="text-[10px] opacity-40 italic">Usa esto para superponer muebles (ej. sillas bajo mesa)</p>
+          <p className="text-[10px] opacity-40 italic">{t('properties.layerHelp')}</p>
           
           {item.attachedWallId && (
             <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
               <div className="flex items-center gap-2 text-blue-600 mb-1">
                 <Move size={12} />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Fijado a Pared</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider">{t('properties.attachedToWall')}</span>
               </div>
-              <p className="text-[10px] text-blue-500/70 italic">Este mueble se moverá automáticamente con la pared.</p>
+              <p className="text-[10px] text-blue-500/70 italic">{t('properties.attachedToWallHelp')}</p>
               <button 
                 onClick={() => onUpdate({ ...item, attachedWallId: undefined, attachedWallSide: undefined, attachedWallOffset: undefined })}
                 className="mt-2 text-[9px] font-bold uppercase tracking-widest text-blue-600 hover:underline"
               >
-                Soltar de la pared
+                {t('properties.detachFromWall')}
               </button>
             </div>
           )}
@@ -383,22 +396,22 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
       {/* Wall Specific */}
       {isWall && (
         <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Tipo de Pared</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.wallType')}</label>
           <div className="flex gap-2">
             <button 
               onClick={() => onUpdate({ ...item, isExterior: false, thickness: 10 })}
               className={cn("flex-1 py-2 text-[10px] border rounded", !item.isExterior ? "bg-[#141414] text-white" : "border-[#141414]/10")}
             >
-              Interior (10cm)
+              {t('properties.interiorWall')} ({displayValue(10)}{unit === 'in' ? '"' : 'cm'})
             </button>
             <button 
               onClick={() => onUpdate({ ...item, isExterior: true, thickness: 30 })}
               className={cn("flex-1 py-2 text-[10px] border rounded", item.isExterior ? "bg-[#141414] text-white" : "border-[#141414]/10")}
             >
-              Exterior (30cm)
+              {t('properties.exteriorWall')} ({displayValue(30)}{unit === 'in' ? '"' : 'cm'})
             </button>
           </div>
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">Grosor Personalizado (cm)</label>
+          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.thickness')} ({unit === 'in' ? 'in' : 'cm'})</label>
           <input 
             type="range"
             min="5"
@@ -409,9 +422,9 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
             className="w-full accent-[#141414]"
           />
           <div className="flex justify-between text-[10px] opacity-40">
-            <span>5cm</span>
-            <span>{item.thickness}cm</span>
-            <span>40cm</span>
+            <span>{displayValue(5)}{unit === 'in' ? '"' : 'cm'}</span>
+            <span>{displayValue(item.thickness)}{unit === 'in' ? '"' : 'cm'}</span>
+            <span>{displayValue(40)}{unit === 'in' ? '"' : 'cm'}</span>
           </div>
         </section>
       )}

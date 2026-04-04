@@ -20,6 +20,9 @@ export enum AppMode {
   DECORATION = 'decoration',
 }
 
+export type Language = 'es' | 'en';
+export type Unit = 'm' | 'in';
+
 export enum DoorType {
   SIMPLE = 'simple',
   DOUBLE = 'double',

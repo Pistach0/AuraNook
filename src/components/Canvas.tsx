@@ -16,6 +16,7 @@ import { calculateArea, getMidpoint, getDistance, getAngle, getLineIntersection,
 import { DOOR_TEMPLATES, WINDOW_TEMPLATES, FURNITURE_TEMPLATES, STAIRS_TEMPLATES, CATEGORIES } from '../constants';
 import { cn } from '../lib/utils';
 import { Search, Plus, X, DoorOpen, Layout, ArrowUpRight as StairsIcon } from 'lucide-react';
+import { useSettings } from '../context/SettingsContext';
 
 interface CanvasProps {
   project: Project;
@@ -46,6 +47,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
   onUpdateProject,
   onOpenProperties
 }, ref) => {
+  const { unit, formatMeasurement } = useSettings();
   const [stageSize, setStageSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [newWallPoints, setNewWallPoints] = useState<Point[]>([]);
   const [mousePos, setMousePos] = useState<Point>({ x: 0, y: 0 });
@@ -1088,6 +1090,24 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
+        {f.type === 'dining_table_round' && (
+          <Group>
+            {/* Round Table */}
+            <Circle x={0} y={0} radius={Math.min(width, height) / 2} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} />
+            {/* Centerpiece */}
+            <Circle x={0} y={0} radius={10} fill="#90EE90" stroke={strokeColor} strokeWidth={1} />
+          </Group>
+        )}
+
+        {f.type === 'coffee_table' && (
+          <Group>
+            {/* Coffee Table */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#E8DCC4" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={12} />
+            {/* Glass reflection line */}
+            <Line points={[-width/2 + 10, -height/2 + 10, width/2 - 10, -height/2 + 10]} stroke="#FFFFFF" strokeWidth={2} opacity={0.5} />
+          </Group>
+        )}
+
         {f.type === 'chair' && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5DC" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
@@ -1432,7 +1452,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         )}
 
         {/* Fallback for any other furniture type */}
-        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool'].includes(f.type) && (
+        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool'].includes(f.type) && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5F5" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
             <Line points={[-width/2, -height/2, width/2, height/2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
@@ -2078,7 +2098,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                     <Text
                       x={-50}
                       y={-10}
-                      text={`${room.name}\n${area.toFixed(2)} m²`}
+                      text={`${room.name}\n${unit === 'm' ? `${area.toFixed(2)} m²` : `${(area * 10.7639).toFixed(2)} sq ft`}`}
                       fontSize={12}
                       fontFamily="serif"
                       fontStyle="italic"
@@ -2090,7 +2110,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                   {/* Dimension lines for room sides - Only show when selected to avoid duplication with walls */}
                   {isSelected && room.points.map((p, i) => {
                     const nextP = room.points[(i + 1) % room.points.length];
-                    const dist = getDistance(p, nextP) / (project.gridSize * 2);
+                    const dist = getDistance(p, nextP);
                     const mid = getMidpoint(p, nextP);
                     const angle = getAngle(p, nextP);
                     return (
@@ -2098,7 +2118,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                         key={`${room.id}-dim-${i}`}
                         x={mid.x}
                         y={mid.y}
-                        text={`${dist.toFixed(2)}m`}
+                        text={formatMeasurement(dist, project.gridSize * 2)}
                         fontSize={8}
                         rotation={angle}
                         fill={isSelected ? "#3b82f6" : "#141414"}
@@ -2325,7 +2345,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                   <Text
                     x={(wall.start.x + wall.end.x) / 2}
                     y={(wall.start.y + wall.end.y) / 2 - 15}
-                    text={`${(getDistance(wall.start, wall.end) / (project.gridSize * 2)).toFixed(2)}m`}
+                    text={formatMeasurement(getDistance(wall.start, wall.end), project.gridSize * 2)}
                     fontSize={10}
                     fill={isSelected ? "#3b82f6" : "#141414"}
                     align="center"
@@ -2472,7 +2492,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               <Text
                 x={(newWallPoints[newWallPoints.length - 1].x + mousePos.x) / 2}
                 y={(newWallPoints[newWallPoints.length - 1].y + mousePos.y) / 2 - 20}
-                text={`${(getDistance(newWallPoints[newWallPoints.length - 1], mousePos) / (project.gridSize * 2)).toFixed(2)}m`}
+                text={formatMeasurement(getDistance(newWallPoints[newWallPoints.length - 1], mousePos), project.gridSize * 2)}
                 fontSize={12}
                 fill="#141414"
                 align="center"
