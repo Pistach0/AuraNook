@@ -104,6 +104,7 @@ export const translations = {
       noResults: 'No se encontraron resultados para',
       reportBugs: 'Informar de errores',
       sendSuggestions: 'Enviar sugerencias',
+      videoTutorial: 'Ver Video Tutorial',
       version: 'AuraNook v1.2 - Actualizado Abril 2026',
       sections: {
         basics: {
@@ -311,6 +312,7 @@ export const translations = {
       noResults: 'No results found for',
       reportBugs: 'Report bugs',
       sendSuggestions: 'Send suggestions',
+      videoTutorial: 'Watch Video Tutorial',
       version: 'AuraNook v1.2 - Updated April 2026',
       sections: {
         basics: {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Search, HelpCircle, BookOpen, MousePointer2, PenTool, Square, DoorOpen, Layout, ChevronUp, Layers, Grid3X3, Ruler, Maximize2, Undo2, Redo2, Save, FileCode, Printer, Trash2, Settings2 } from 'lucide-react';
+import { X, Search, HelpCircle, BookOpen, MousePointer2, PenTool, Square, DoorOpen, Layout, ChevronUp, Layers, Grid3X3, Ruler, Maximize2, Undo2, Redo2, Save, FileCode, Printer, Trash2, Settings2, Youtube } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 
@@ -142,9 +142,20 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
               <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{t('helpGuide.subtitle')}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-[#141414]/5 rounded-full transition-colors">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <a 
+              href="https://youtu.be/Yjjz1iV-IFQ" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors text-sm font-bold shadow-sm"
+            >
+              <Youtube size={16} />
+              {t('helpGuide.videoTutorial')}
+            </a>
+            <button onClick={onClose} className="p-2 hover:bg-[#141414]/5 rounded-full transition-colors">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Search Bar */}
