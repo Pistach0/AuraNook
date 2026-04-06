@@ -120,7 +120,7 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-[10px] opacity-40 block mb-1">{t('properties.direction')}</span>
+              <span className="text-[10px] opacity-40 block mb-1">{t('properties.stairsDirection')}</span>
               <select 
                 value={item.direction}
                 onChange={(e) => onUpdate({ ...item, direction: e.target.value as 'up' | 'down' })}

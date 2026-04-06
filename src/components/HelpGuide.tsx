@@ -26,7 +26,7 @@ export const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const GUIDE_SECTIONS = [
+  const GUIDE_SECTIONS: GuideSection[] = [
     {
       id: 'basics',
       title: t('helpGuide.sections.basics.title'),

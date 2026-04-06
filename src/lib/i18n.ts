@@ -30,6 +30,7 @@ export const translations = {
       deleteProject: 'Eliminar proyecto',
       fullscreen: 'Pantalla completa',
       exitFullscreen: 'Salir de pantalla completa',
+      auraChallenge: 'AuraChallenge',
     },
     toolbar: {
       design: 'Diseño',
@@ -238,6 +239,7 @@ export const translations = {
       deleteProject: 'Delete project',
       fullscreen: 'Fullscreen',
       exitFullscreen: 'Exit fullscreen',
+      auraChallenge: 'AuraChallenge',
     },
     toolbar: {
       design: 'Design',

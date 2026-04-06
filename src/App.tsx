@@ -49,6 +49,7 @@ import {
   Settings2,
   Home,
   Globe,
+  Lightbulb,
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
@@ -929,6 +930,19 @@ export default function App() {
                 />
               </label>
             </div>
+
+            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+
+            <a 
+              href="https://aura-challenge-beta.vercel.app/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#141414] text-white rounded-xl hover:bg-[#141414]/80 transition-colors text-xs font-bold shadow-sm"
+              title={t('app.auraChallenge')}
+            >
+              <Lightbulb size={14} />
+              <span className="hidden sm:inline">{t('app.auraChallenge')}</span>
+            </a>
 
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
 

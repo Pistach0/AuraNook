@@ -2455,12 +2455,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               {selectedIds.includes(item.id) && (
                 <Rect
                   width={cmToPx(item.width) + 10}
-                  height={cmToPx(item.height) + 10}
+                  height={cmToPx(item.length || 200) + 10}
                   stroke="#3b82f6"
                   strokeWidth={1}
                   dash={[5, 5]}
                   offsetX={(cmToPx(item.width) + 10) / 2}
-                  offsetY={(cmToPx(item.height) + 10) / 2}
+                  offsetY={(cmToPx(item.length || 200) + 10) / 2}
                 />
               )}
             </Group>
