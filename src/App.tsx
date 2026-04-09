@@ -22,6 +22,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { Canvas } from './components/Canvas';
 import { PrintModal } from './components/PrintModal';
 import { Logo } from './components/Logo';
+import { ChallengePanel } from './components/ChallengePanel';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Grid3X3, 
@@ -50,6 +51,7 @@ import {
   Home,
   Globe,
   Lightbulb,
+  Trophy,
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
@@ -107,7 +109,9 @@ export default function App() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [previewData, setPreviewData] = useState<{ image: string; width: number; height: number; pixelsPerMeter: number } | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState<'properties' | 'challenge'>('properties');
+  const [isChallengeOpen, setIsChallengeOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [tempName, setTempName] = useState(project.name);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -540,7 +544,9 @@ export default function App() {
   const handleSelect = (ids: string[]) => {
     setSelectedIds(ids);
     // Hide properties panel when selecting a different element or deselecting
-    setIsPropertiesOpen(false);
+    if (ids.length === 0 && rightPanelTab === 'properties') {
+      setIsRightPanelOpen(false);
+    }
     if (ids.length > 0 && activeTool !== ToolType.SELECT) {
       setActiveTool(ToolType.SELECT);
     }
@@ -570,7 +576,7 @@ export default function App() {
         // Basic validation could be added here
         setProject(importedProject);
         setSelectedIds([]);
-        setIsPropertiesOpen(false);
+        setIsRightPanelOpen(false);
       } catch (error) {
         console.error("Error al importar el proyecto:", error);
         alert(t('app.importError'));
@@ -921,17 +927,23 @@ export default function App() {
             </div>
 
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
-
-            <a 
-              href="https://aura-challenge-beta.vercel.app/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 bg-[#141414] text-white rounded-xl hover:bg-[#141414]/80 transition-colors text-xs font-bold shadow-sm"
-              title={t('app.auraChallenge')}
+            
+            <button 
+              onClick={() => {
+                setIsRightPanelOpen(true);
+                setRightPanelTab('challenge');
+              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-xl transition-colors text-xs font-bold shadow-sm",
+                rightPanelTab === 'challenge' && isRightPanelOpen
+                  ? "bg-amber-500 text-white hover:bg-amber-600" 
+                  : "bg-[#141414] text-white hover:bg-[#141414]/80"
+              )}
+              title="AuraChallenge"
             >
-              <Lightbulb size={14} />
-              <span className="hidden sm:inline">{t('app.auraChallenge')}</span>
-            </a>
+              <Trophy size={14} />
+              <span className="hidden sm:inline">AuraChallenge</span>
+            </button>
 
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
 
@@ -999,7 +1011,10 @@ export default function App() {
             onAddStairs={handleAddStairs}
             updateCurrentFloor={updateCurrentFloor}
             onUpdateProject={setProject}
-            onOpenProperties={() => setIsPropertiesOpen(true)}
+            onOpenProperties={() => {
+              setIsRightPanelOpen(true);
+              setRightPanelTab('properties');
+            }}
           />
         </main>
 
@@ -1033,42 +1048,69 @@ export default function App() {
         </footer>
       </div>
 
-      {/* Right Sidebar: Properties */}
-      {/* Right Sidebar: Properties */}
+      {/* Right Sidebar: Properties & Challenge */}
       <AnimatePresence>
-        {selectedIds.length > 0 && (
-          <motion.div 
-            initial={{ x: 300 }}
-            animate={{ x: isPropertiesOpen ? 0 : 350 }}
-            exit={{ x: 300 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="w-72 border-l border-[#141414] bg-white/80 backdrop-blur-md z-20 flex flex-col fixed right-0 top-0 bottom-0 shadow-2xl"
+        <motion.div 
+          initial={{ x: 320 }}
+          animate={{ x: isRightPanelOpen ? 0 : 320 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className="w-80 border-l border-[#141414] bg-white/90 backdrop-blur-md z-20 flex flex-col fixed right-0 top-0 bottom-0 shadow-2xl"
+        >
+          {/* Toggle Handle */}
+          <button 
+            onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+            className="absolute left-[-48px] top-1/2 -translate-y-1/2 w-12 h-16 bg-white border border-[#141414] border-r-0 rounded-l-2xl flex items-center justify-center shadow-[-6px_0_12px_rgba(0,0,0,0.1)] hover:bg-slate-50 transition-colors z-30 cursor-pointer"
+            title={isRightPanelOpen ? "Contraer panel" : "Expandir panel"}
           >
-            {/* Toggle Handle - Always visible on the left edge of the sidebar */}
-            <button 
-              onClick={() => setIsPropertiesOpen(!isPropertiesOpen)}
-              className="absolute left-[-40px] top-1/2 -translate-y-1/2 w-10 h-12 bg-white border border-[#141414] border-r-0 rounded-l-xl flex items-center justify-center shadow-[-4px_0_10px_rgba(0,0,0,0.1)] hover:bg-[#141414]/5 transition-colors z-30"
-              title={isPropertiesOpen ? "Contraer" : "Expandir"}
-            >
-              <Settings2 size={18} className={cn("transition-transform duration-300", !isPropertiesOpen && "rotate-180")} />
-            </button>
+            <Settings2 size={24} className={cn("transition-transform duration-300 text-slate-700", !isRightPanelOpen && "rotate-180")} />
+          </button>
 
-            <div className="flex-1 p-6 overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="font-serif italic text-lg">
-                  {selectedIds.length > 1 ? `${selectedIds.length} Seleccionados` : t('properties.title')}
-                </h2>
-                <button 
-                  onClick={handleDeleteSelected}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                  title={t('properties.delete')}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-              
-              {isPropertiesOpen && (
+          {/* Tabs */}
+          <div className="flex border-b border-[#141414]/10">
+            <button
+              onClick={() => setRightPanelTab('properties')}
+              className={cn(
+                "flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors",
+                rightPanelTab === 'properties' ? "bg-[#141414] text-white" : "hover:bg-[#141414]/5 text-[#141414]/60"
+              )}
+            >
+              Propiedades
+            </button>
+            <button
+              onClick={() => setRightPanelTab('challenge')}
+              className={cn(
+                "flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2",
+                rightPanelTab === 'challenge' ? "bg-amber-500 text-white" : "hover:bg-amber-50 text-amber-600/60"
+              )}
+            >
+              <Trophy size={14} />
+              Desafío
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto relative">
+            {/* Properties Tab Content */}
+            <div className={cn("absolute inset-0 p-6", rightPanelTab === 'properties' ? "block" : "hidden")}>
+              {selectedIds.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                  <Settings2 size={48} className="mb-4 opacity-20" />
+                  <p className="text-sm italic">Selecciona un elemento para ver sus propiedades</p>
+                </div>
+              ) : (
                 <>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="font-serif italic text-lg">
+                      {selectedIds.length > 1 ? `${selectedIds.length} Seleccionados` : t('properties.title')}
+                    </h2>
+                    <button 
+                      onClick={handleDeleteSelected}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                      title={t('properties.delete')}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                  
                   {selectedIds.length === 1 && (
                     <PropertiesPanel 
                       item={selectedItem} 
@@ -1092,8 +1134,18 @@ export default function App() {
                 </>
               )}
             </div>
-          </motion.div>
-        )}
+
+            {/* Challenge Tab Content */}
+            <div className={cn("absolute inset-0", rightPanelTab === 'challenge' ? "block" : "hidden")}>
+              <ChallengePanel
+                project={project}
+                currentFloor={currentFloor}
+                isOpen={true}
+                onClose={() => setIsRightPanelOpen(false)}
+              />
+            </div>
+          </div>
+        </motion.div>
       </AnimatePresence>
 
       {/* Projects List Modal */}

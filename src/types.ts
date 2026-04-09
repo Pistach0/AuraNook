@@ -67,6 +67,7 @@ export interface Room {
   texture?: string;
   showDimensions?: boolean;
   labelPosition?: Point;
+  roomType?: string;
 }
 
 export interface Furniture {
@@ -83,6 +84,7 @@ export interface Furniture {
   name?: string;
   zIndex?: number;
   color?: string;
+  texture?: string;
   attachedWallId?: string;
   attachedWallSide?: number; // 1 or -1
   attachedWallOffset?: number; // Distance from wall start (0 to 1)
@@ -147,4 +149,19 @@ export interface Project {
   showGhostFloors: boolean;
   ghostFloorId?: string;
   zoom: number;
+}
+
+export interface ChallengeRequirement {
+  id: string;
+  type: 'room_count' | 'furniture_count' | 'max_area' | 'specific_furniture' | 'room_type';
+  targetValue: number | string;
+  description: string;
+  isMet?: boolean;
+}
+
+export interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  requirements: ChallengeRequirement[];
 }

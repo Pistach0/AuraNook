@@ -57,7 +57,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [pendingOpening, setPendingOpening] = useState<any>(null);
   const [pendingStairs, setPendingStairs] = useState<any>(null);
-  const [selectionRect, setSelectionRect] = useState<{ x1: number, y1: number, x2: number, y2: number } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,8 +210,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
     if (activeTool === ToolType.SELECT) {
       if (e.target === stage) {
-        setSelectionRect({ x1: worldPos.x, y1: worldPos.y, x2: worldPos.x, y2: worldPos.y });
-        if (!e.evt.ctrlKey) onSelect([]);
+        onSelect([]);
       }
       return;
     }
@@ -405,11 +403,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       });
       return;
     }
-
-    if (selectionRect) {
-      setSelectionRect(prev => prev ? { ...prev, x2: worldPos.x, y2: worldPos.y } : null);
-      return;
-    }
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -443,51 +436,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       setIsPanning(false);
       return;
     }
-
-    if (selectionRect) {
-      const x1 = Math.min(selectionRect.x1, selectionRect.x2);
-      const y1 = Math.min(selectionRect.y1, selectionRect.y2);
-      const x2 = Math.max(selectionRect.x1, selectionRect.x2);
-      const y2 = Math.max(selectionRect.y1, selectionRect.y2);
-
-      const newSelectedIds = [...selectedIds];
-
-      // Select items within rectangle
-      currentFloor.walls.forEach(w => {
-        if (w.start.x >= x1 && w.start.x <= x2 && w.start.y >= y1 && w.start.y <= y2 &&
-            w.end.x >= x1 && w.end.x <= x2 && w.end.y >= y1 && w.end.y <= y2) {
-          if (!newSelectedIds.includes(w.id)) newSelectedIds.push(w.id);
-        }
-      });
-
-      currentFloor.rooms.forEach(r => {
-        if (r.points.every(p => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2)) {
-          if (!newSelectedIds.includes(r.id)) newSelectedIds.push(r.id);
-        }
-      });
-
-      currentFloor.furniture.forEach(f => {
-        if (f.x >= x1 && f.x <= x2 && f.y >= y1 && f.y <= y2) {
-          if (!newSelectedIds.includes(f.id)) newSelectedIds.push(f.id);
-        }
-      });
-
-      currentFloor.openings.forEach(o => {
-        const wall = currentFloor.walls.find(w => w.id === o.wallId);
-        if (wall) {
-          const p = {
-            x: wall.start.x + (wall.end.x - wall.start.x) * o.position,
-            y: wall.start.y + (wall.end.y - wall.start.y) * o.position
-          };
-          if (p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2) {
-            if (!newSelectedIds.includes(o.id)) newSelectedIds.push(o.id);
-          }
-        }
-      });
-
-      onSelect(newSelectedIds);
-      setSelectionRect(null);
-    }
   };
 
   const handleStageClick = (e: any) => {
@@ -499,15 +447,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       } else {
         const id = e.target.id() || e.target.parent?.id();
         if (id) {
-          if (e.evt.ctrlKey) {
-            if (selectedIds.includes(id)) {
-              onSelect(selectedIds.filter(sid => sid !== id));
-            } else {
-              onSelect([...selectedIds, id]);
-            }
-          } else {
-            onSelect([id]);
-          }
+          onSelect([id]);
         }
       }
     }
@@ -520,8 +460,12 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     }
     
     // If we double clicked an element (not the stage background), open properties
-    if (e.target !== e.target.getStage() && selectedIds.length > 0) {
-      onOpenProperties();
+    if (e.target !== e.target.getStage()) {
+      const id = e.target.id() || e.target.parent?.id();
+      if (id) {
+        onSelect([id]);
+        onOpenProperties();
+      }
     }
   };
 

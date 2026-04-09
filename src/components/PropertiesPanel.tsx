@@ -38,8 +38,48 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
           type="text"
           value={item.name || (isWall ? t('properties.wall') : isFurniture ? t(`furniture.items.${item.type}`) : isOpening ? t(`properties.${item.type}`) : isStairs ? t('properties.stairs') : t('properties.room'))}
           onChange={(e) => onUpdate({ ...item, name: e.target.value })}
-          className="w-full bg-transparent border-b border-[#141414] py-1 focus:outline-none focus:border-blue-500 font-serif italic"
+          className="w-full bg-transparent border-b border-[#141414] py-1 focus:outline-none focus:border-blue-500 font-serif italic mb-4"
         />
+
+        {isRoom && (
+          <div className="mt-4">
+            <label className="block text-[10px] uppercase tracking-widest opacity-50 mb-2">Tipo de Habitación</label>
+            <select
+              value={item.roomType || ''}
+              onChange={(e) => {
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                onUpdate({ 
+                  ...item, 
+                  roomType: e.target.value,
+                  name: selectedOption.text !== 'Seleccionar...' ? selectedOption.text : item.name
+                });
+              }}
+              className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
+            >
+              <option value="">Seleccionar...</option>
+              <option value="dormitorio">Dormitorio</option>
+              <option value="baño">Baño</option>
+              <option value="cocina">Cocina</option>
+              <option value="salon">Salón</option>
+              <option value="comedor">Comedor</option>
+              <option value="salon_comedor_cocina">Salón-Comedor-Cocina</option>
+              <option value="despacho">Despacho</option>
+              <option value="porche">Porche</option>
+              <option value="patio">Patio</option>
+              <option value="terraza">Terraza</option>
+              <option value="despensa">Despensa</option>
+              <option value="bodega">Bodega</option>
+              <option value="entrada">Entrada</option>
+              <option value="pasillo">Pasillo</option>
+              <option value="ascensor">Ascensor</option>
+              <option value="garaje">Garaje</option>
+              <option value="lavadero">Lavadero</option>
+              <option value="vestidor">Vestidor</option>
+              <option value="gimnasio">Gimnasio</option>
+              <option value="sala_juegos">Sala de juegos</option>
+            </select>
+          </div>
+        )}
       </section>
 
       {/* Dimensions */}
