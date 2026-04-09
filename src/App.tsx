@@ -518,7 +518,7 @@ export default function App() {
   const handleAddStairs = (stairs: Stairs) => {
     updateCurrentFloor(floor => ({
       ...floor,
-      stairs: [stairs]
+      stairs: [...(floor.stairs || []), stairs]
     }));
     setSelectedIds([stairs.id]);
     setActiveTool(ToolType.SELECT);
@@ -898,17 +898,6 @@ export default function App() {
               title={t('app.showDimensions')}
             >
               <Ruler size={18} />
-            </button>
-            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
-            <button 
-              onClick={() => setIsPropertiesOpen(!isPropertiesOpen)}
-              className={cn(
-                "p-2 rounded-full transition-colors border border-transparent",
-                isPropertiesOpen ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
-              )}
-              title={t('app.settings')}
-            >
-              <Settings2 size={18} />
             </button>
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
             

@@ -64,6 +64,7 @@ export interface Room {
   points: Point[];
   name: string;
   color: string;
+  texture?: string;
   showDimensions?: boolean;
   labelPosition?: Point;
 }
@@ -81,6 +82,7 @@ export interface Furniture {
   height: number;
   name?: string;
   zIndex?: number;
+  color?: string;
   attachedWallId?: string;
   attachedWallSide?: number; // 1 or -1
   attachedWallOffset?: number; // Distance from wall start (0 to 1)

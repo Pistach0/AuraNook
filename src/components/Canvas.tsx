@@ -161,6 +161,8 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
   const [draggingRoomVertex, setDraggingRoomVertex] = useState<{roomId: string, pointIndex: number, pos: Point} | null>(null);
 
+  const [draggingWallVertex, setDraggingWallVertex] = useState<{wallId: string, isStart: boolean, pos: Point} | null>(null);
+
   const snapToGrid = (point: Point): Point => {
     const size = project.gridSize / 2;
     return {
@@ -374,6 +376,36 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       return;
     }
 
+    if (draggingWallVertex) {
+      const snapped = snapToGrid(worldPos);
+      setDraggingWallVertex(prev => prev ? { ...prev, pos: snapped } : null);
+      
+      updateCurrentFloor(floor => {
+        const wall = floor.walls.find(w => w.id === draggingWallVertex.wallId);
+        if (!wall) return floor;
+
+        const oldPoint = draggingWallVertex.isStart ? wall.start : wall.end;
+        const newPoint = snapped;
+
+        const updatedWalls = floor.walls.map(w => {
+          let updatedW = { ...w };
+          if (getDistance(w.start, oldPoint) < 2) updatedW.start = newPoint;
+          if (getDistance(w.end, oldPoint) < 2) updatedW.end = newPoint;
+          return updatedW;
+        });
+
+        return {
+          ...floor,
+          walls: updatedWalls,
+          rooms: floor.rooms.map(r => ({
+            ...r,
+            points: r.points.map(p => getDistance(p, oldPoint) < 2 ? newPoint : p)
+          }))
+        };
+      });
+      return;
+    }
+
     if (selectionRect) {
       setSelectionRect(prev => prev ? { ...prev, x2: worldPos.x, y2: worldPos.y } : null);
       return;
@@ -402,6 +434,11 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
   };
 
   const handleMouseUp = (e: any) => {
+    if (draggingWallVertex) {
+      setDraggingWallVertex(null);
+      return;
+    }
+
     if (isPanning) {
       setIsPanning(false);
       return;
@@ -493,116 +530,266 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [newRoomPoints, newWallPoints, activeTool]);
 
+  const handleFurnitureDragMove = (id: string, e: any) => {
+    const floor = currentFloor;
+    const f = floor.furniture.find(item => item.id === id);
+    if (!f) return null;
+
+    const stage = e.target.getStage();
+    const transform = stage.getAbsoluteTransform().copy();
+    transform.invert();
+    const pos = transform.point(e.target.absolutePosition());
+    
+    let newX = pos.x;
+    let newY = pos.y;
+    let rotation = f.rotation;
+    let nearestWallId = f.attachedWallId;
+    let nearestWallSide = f.attachedWallSide;
+    let nearestWallOffset = f.attachedWallOffset;
+    let snappedToCounter = false;
+
+    // Counter snapping logic
+    if (f.type === 'kitchen_counter') {
+      const fWidth = cmToPx(f.width);
+      const fHeight = cmToPx(f.height);
+      const snapDist = 20;
+
+      for (const other of floor.furniture) {
+        if (other.id === f.id || other.type !== 'kitchen_counter') continue;
+        
+        const otherWidth = cmToPx(other.width);
+        const otherHeight = cmToPx(other.height);
+        
+        // Possible snap points for 'other' (corners and edges)
+        const otherCorners = [
+          { x: -otherWidth/2, y: -otherHeight/2 },
+          { x: otherWidth/2, y: -otherHeight/2 },
+          { x: otherWidth/2, y: otherHeight/2 },
+          { x: -otherWidth/2, y: otherHeight/2 }
+        ].map(p => {
+          const rad = (other.rotation * Math.PI) / 180;
+          return {
+            x: other.x + p.x * Math.cos(rad) - p.y * Math.sin(rad),
+            y: other.y + p.x * Math.sin(rad) + p.y * Math.cos(rad)
+          };
+        });
+
+        // My corners
+        const myCorners = [
+          { x: -fWidth/2, y: -fHeight/2 },
+          { x: fWidth/2, y: -fHeight/2 },
+          { x: fWidth/2, y: fHeight/2 },
+          { x: -fWidth/2, y: fHeight/2 }
+        ];
+
+        for (let i = 0; i < 4; i++) {
+          for (let j = 0; j < 4; j++) {
+            const myCornerRel = myCorners[i];
+            const rad = (f.rotation * Math.PI) / 180;
+            const myCornerWorld = {
+              x: newX + myCornerRel.x * Math.cos(rad) - myCornerRel.y * Math.sin(rad),
+              y: newY + myCornerRel.x * Math.sin(rad) + myCornerRel.y * Math.cos(rad)
+            };
+
+            if (getDistance(myCornerWorld, otherCorners[j]) < snapDist) {
+              const dxSnap = otherCorners[j].x - myCornerWorld.x;
+              const dySnap = otherCorners[j].y - myCornerWorld.y;
+              newX += dxSnap;
+              newY += dySnap;
+              snappedToCounter = true;
+              
+              // Align rotation to be parallel or perpendicular to the other counter
+              const angleDiff = (f.rotation - other.rotation) % 90;
+              if (Math.abs(angleDiff) < 45) {
+                rotation = f.rotation - angleDiff;
+              } else {
+                rotation = f.rotation + (90 - Math.abs(angleDiff)) * Math.sign(angleDiff);
+              }
+              
+              break;
+            }
+          }
+          if (snappedToCounter) break;
+        }
+        if (snappedToCounter) break;
+      }
+    }
+
+    if (!snappedToCounter) {
+      const fHeight = cmToPx(f.height);
+      const fWidth = cmToPx(f.width);
+      
+      let minDistance = Infinity; 
+      let foundWallId = '';
+      let foundSide = 1;
+      let foundOffset = 0;
+      let finalSnapDepth = fHeight;
+      let finalSnapWidth = fWidth;
+      let finalRotation = f.rotation;
+
+      // Pass 1: Find closest wall to snap to
+      floor.walls.forEach(wall => {
+        const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
+        const wallLen = getDistance(wall.start, wall.end);
+        if (wallLen === 0) return;
+        
+        const wdx = wall.end.x - wall.start.x;
+        const wdy = wall.end.y - wall.start.y;
+        const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
+        
+        const projX = wall.start.x + t * wdx;
+        const projY = wall.start.y + t * wdy;
+        const nx = -wdy / wallLen;
+        const ny = wdx / wallLen;
+        const dot = (newX - projX) * nx + (newY - projY) * ny;
+        const side = dot >= 0 ? 1 : -1;
+        
+        let wallAngle = getAngle(wall.start, wall.end);
+        let baseAngle = side === -1 ? wallAngle + 180 : wallAngle;
+        
+        let angleDiff = (f.rotation - baseAngle) % 360;
+        if (angleDiff < 0) angleDiff += 360;
+        
+        let snapAngleOffset = 0;
+        if (angleDiff >= 45 && angleDiff < 135) snapAngleOffset = 90;
+        else if (angleDiff >= 135 && angleDiff < 225) snapAngleOffset = 180;
+        else if (angleDiff >= 225 && angleDiff < 315) snapAngleOffset = 270;
+        
+        let currentSnapDepth = (snapAngleOffset === 90 || snapAngleOffset === 270) ? fWidth : fHeight;
+        let currentSnapWidth = (snapAngleOffset === 90 || snapAngleOffset === 270) ? fHeight : fWidth;
+        
+        const thickness = cmToPx(wall.thickness);
+        const overlapDist = currentSnapDepth / 2 + thickness / 2;
+        
+        const bias = (wall.id === f.attachedWallId) ? 20 : 0;
+        const threshold = Math.max(currentSnapDepth / 2 + 40, overlapDist + 5);
+        
+        let effectiveDist = dist - bias;
+        if (dist < overlapDist) {
+           effectiveDist = dist - 1000;
+        }
+        
+        if (effectiveDist < minDistance && dist < threshold) {
+          minDistance = effectiveDist;
+          foundWallId = wall.id;
+          foundSide = side;
+          foundOffset = t;
+          finalSnapDepth = currentSnapDepth;
+          finalSnapWidth = currentSnapWidth;
+          finalRotation = baseAngle + snapAngleOffset;
+        }
+      });
+
+      if (foundWallId) {
+        const wall = floor.walls.find(w => w.id === foundWallId)!;
+        const wallLen = getDistance(wall.start, wall.end);
+        const wdx = wall.end.x - wall.start.x;
+        const wdy = wall.end.y - wall.start.y;
+        const nx = -wdy / wallLen;
+        const ny = wdx / wallLen;
+        const thickness = cmToPx(wall.thickness);
+        
+        const halfWidthOffset = (finalSnapWidth / 2) / wallLen;
+        
+        if (f.type === 'kitchen_counter') {
+          const minOffset = (finalSnapWidth / 2 + thickness / 2) / wallLen;
+          foundOffset = Math.max(minOffset, Math.min(1 - minOffset, foundOffset));
+        } else {
+          if (halfWidthOffset >= 0.5) {
+            foundOffset = 0.5;
+          } else {
+            foundOffset = Math.max(halfWidthOffset, Math.min(1 - halfWidthOffset, foundOffset));
+          }
+        }
+
+        newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + finalSnapDepth / 2);
+        newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + finalSnapDepth / 2);
+        
+        nearestWallId = foundWallId;
+        nearestWallSide = foundSide;
+        nearestWallOffset = foundOffset;
+        rotation = finalRotation;
+      } else {
+        nearestWallId = undefined;
+        nearestWallSide = undefined;
+        nearestWallOffset = undefined;
+      }
+
+      // Pass 2: Push out of ANY overlapping walls (e.g. in corners)
+      floor.walls.forEach(wall => {
+        const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
+        const wallLen = getDistance(wall.start, wall.end);
+        if (wallLen === 0) return;
+        
+        const wdx = wall.end.x - wall.start.x;
+        const wdy = wall.end.y - wall.start.y;
+        const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
+        
+        const projX = wall.start.x + t * wdx;
+        const projY = wall.start.y + t * wdy;
+        const nx = -wdy / wallLen;
+        const ny = wdx / wallLen;
+        const dot = (newX - projX) * nx + (newY - projY) * ny;
+        const side = dot >= 0 ? 1 : -1;
+        
+        let wallAngle = getAngle(wall.start, wall.end);
+        let baseAngle = side === -1 ? wallAngle + 180 : wallAngle;
+        let angleDiff = (rotation - baseAngle) % 360;
+        if (angleDiff < 0) angleDiff += 360;
+        
+        let snapAngleOffset = 0;
+        if (angleDiff >= 45 && angleDiff < 135) snapAngleOffset = 90;
+        else if (angleDiff >= 135 && angleDiff < 225) snapAngleOffset = 180;
+        else if (angleDiff >= 225 && angleDiff < 315) snapAngleOffset = 270;
+        
+        let currentSnapDepth = (snapAngleOffset === 90 || snapAngleOffset === 270) ? fWidth : fHeight;
+        
+        const thickness = cmToPx(wall.thickness);
+        const overlapDist = currentSnapDepth / 2 + thickness / 2;
+        
+        if (dist < overlapDist - 0.1) { // 0.1 margin for floating point
+          const pushDist = overlapDist - dist;
+          newX += nx * side * pushDist;
+          newY += ny * side * pushDist;
+        }
+      });
+    }
+
+    return { x: newX, y: newY, rotation, attachedWallId: nearestWallId, attachedWallSide: nearestWallSide, attachedWallOffset: nearestWallOffset };
+  };
+
   const handleFurnitureDragEnd = (id: string, e: any) => {
     const furniture = currentFloor.furniture.find(f => f.id === id);
     if (!furniture) return;
 
-    const dx = e.currentTarget.x() - furniture.x;
-    const dy = e.currentTarget.y() - furniture.y;
+    const result = handleFurnitureDragMove(id, e);
+    if (!result) return;
+
+    const dx = result.x - furniture.x;
+    const dy = result.y - furniture.y;
 
     const idsToMove = selectedIds.includes(id) ? selectedIds : [id];
 
     updateCurrentFloor(floor => {
       const newFurniture = floor.furniture.map(f => {
         if (idsToMove.includes(f.id)) {
-          let newX = f.x + dx;
-          let newY = f.y + dy;
-          
-          let nearestWallId = f.attachedWallId;
-          let nearestWallSide = f.attachedWallSide;
-          let nearestWallOffset = f.attachedWallOffset;
-          let rotation = f.rotation;
-
           if (f.id === id) {
-            // Snapping logic for the primary dragged item
-            const fHeight = cmToPx(f.height); // Use height (depth) of furniture
-            const fWidth = cmToPx(f.width);
-            // Snap when the edge of the furniture is within ~37.5cm (15px) of the wall
-            let minDistance = fHeight / 2 + 15; 
-            let foundWallId = '';
-            let foundSide = 1;
-            let foundOffset = 0;
-
-            floor.walls.forEach(wall => {
-              const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
-              // Apply a dynamic "stickiness" bias to the currently attached wall to prevent jumping in corners
-              // The bias needs to be larger than the difference between width/2 and height/2
-              const dimensionDiff = Math.abs(fHeight - fWidth) / 2;
-              const bias = (wall.id === f.attachedWallId) ? dimensionDiff + 20 : 0;
-              
-              if (dist - bias < minDistance) {
-                minDistance = dist - bias;
-                foundWallId = wall.id;
-                
-                const wallLen = getDistance(wall.start, wall.end);
-                const wdx = wall.end.x - wall.start.x;
-                const wdy = wall.end.y - wall.start.y;
-                const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
-                
-                // Constrain movement so the furniture doesn't stick out past the wall ends
-                const halfWidthOffset = (fWidth / 2) / wallLen;
-                if (halfWidthOffset >= 0.5) {
-                  foundOffset = 0.5;
-                } else {
-                  foundOffset = Math.max(halfWidthOffset, Math.min(1 - halfWidthOffset, t));
-                }
-
-                const projX = wall.start.x + foundOffset * wdx;
-                const projY = wall.start.y + foundOffset * wdy;
-
-                const nx = -wdy / wallLen;
-                const ny = wdx / wallLen;
-                const dot = (newX - projX) * nx + (newY - projY) * ny;
-                foundSide = dot >= 0 ? 1 : -1;
-              }
-            });
-
-            if (foundWallId) {
-              const wall = floor.walls.find(w => w.id === foundWallId)!;
-              const wallLen = getDistance(wall.start, wall.end);
-              const wdx = wall.end.x - wall.start.x;
-              const wdy = wall.end.y - wall.start.y;
-              const nx = -wdy / wallLen;
-              const ny = wdx / wallLen;
-              const thickness = cmToPx(wall.thickness);
-              
-              // The center of the furniture should be offset by half the wall thickness + half the furniture depth
-              newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + fHeight / 2);
-              newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + fHeight / 2);
-              
-              nearestWallId = foundWallId;
-              nearestWallSide = foundSide;
-              nearestWallOffset = foundOffset;
-              // Align rotation with wall
-              rotation = getAngle(wall.start, wall.end);
-              if (foundSide === -1) rotation += 180;
-            } else {
-              const snapped = snapToGrid({ x: newX, y: newY });
-              newX = snapped.x;
-              newY = snapped.y;
-              nearestWallId = undefined;
-              nearestWallSide = undefined;
-              nearestWallOffset = undefined;
-            }
+            return {
+              ...f,
+              x: result.x,
+              y: result.y,
+              rotation: result.rotation,
+              attachedWallId: result.attachedWallId,
+              attachedWallSide: result.attachedWallSide,
+              attachedWallOffset: result.attachedWallOffset
+            };
           } else {
-            // For other selected items, just snap to grid
-            const snapped = snapToGrid({ x: newX, y: newY });
-            newX = snapped.x;
-            newY = snapped.y;
-            nearestWallId = undefined;
-            nearestWallSide = undefined;
-            nearestWallOffset = undefined;
+            return {
+              ...f,
+              x: f.x + dx,
+              y: f.y + dy
+            };
           }
-
-          return {
-            ...f,
-            x: newX,
-            y: newY,
-            rotation,
-            attachedWallId: nearestWallId,
-            attachedWallSide: nearestWallSide,
-            attachedWallOffset: nearestWallOffset
-          };
         }
         return f;
       });
@@ -816,107 +1003,135 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     }));
   };
 
+  const handleStairsDragMove = (id: string, e: any) => {
+    const floor = currentFloor;
+    const s = floor.stairs.find(item => item.id === id);
+    if (!s) return null;
+
+    const stage = e.target.getStage();
+    const transform = stage.getAbsoluteTransform().copy();
+    transform.invert();
+    const pos = transform.point(e.target.absolutePosition());
+    
+    let newX = pos.x;
+    let newY = pos.y;
+    let rotation = s.rotation;
+    let nearestWallId = s.attachedWallId;
+    let nearestWallSide = s.attachedWallSide;
+    let nearestWallOffset = s.attachedWallOffset;
+
+    const sHeight = cmToPx(s.length || 200);
+    const sWidth = cmToPx(s.width || 100);
+    let minDistance = 40;
+    let foundWallId = '';
+    let foundSide = 1;
+    let foundOffset = 0;
+
+    floor.walls.forEach(wall => {
+      const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
+      const dimensionDiff = Math.abs(sHeight - sWidth) / 2;
+      const bias = (wall.id === s.attachedWallId) ? dimensionDiff + 20 : 0;
+      
+      if (dist - bias < minDistance) {
+        minDistance = dist - bias;
+        foundWallId = wall.id;
+        
+        const wallLen = getDistance(wall.start, wall.end);
+        const wdx = wall.end.x - wall.start.x;
+        const wdy = wall.end.y - wall.start.y;
+        const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
+        
+        const halfLengthOffset = (sHeight / 2) / wallLen;
+        if (halfLengthOffset >= 0.5) {
+          foundOffset = 0.5;
+        } else {
+          foundOffset = Math.max(halfLengthOffset, Math.min(1 - halfLengthOffset, t));
+        }
+        
+        const projX = wall.start.x + foundOffset * wdx;
+        const projY = wall.start.y + foundOffset * wdy;
+
+        const nx = -wdy / wallLen;
+        const ny = wdx / wallLen;
+        const dot = (newX - projX) * nx + (newY - projY) * ny;
+        foundSide = dot >= 0 ? 1 : -1;
+      }
+    });
+
+    if (foundWallId) {
+      const wall = floor.walls.find(w => w.id === foundWallId)!;
+      const wallLen = getDistance(wall.start, wall.end);
+      const wdx = wall.end.x - wall.start.x;
+      const wdy = wall.end.y - wall.start.y;
+      const nx = -wdy / wallLen;
+      const ny = wdx / wallLen;
+      const thickness = cmToPx(wall.thickness);
+      
+      // Allow moving along the wall if not explicitly locked (though user said they are too locked)
+      // The issue might be that handleStairsDragMove is called on every move and it snaps too aggressively.
+      // We should allow some "freedom" to move along the offset.
+      
+      newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + sWidth / 2);
+      newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + sWidth / 2);
+      
+      nearestWallId = foundWallId;
+      nearestWallSide = foundSide;
+      nearestWallOffset = foundOffset;
+      
+      const angle1 = getAngle(wall.start, wall.end) + 90 + (foundSide === -1 ? 180 : 0);
+      const angle2 = angle1 + 180;
+      
+      const normalize = (a: number) => ((a % 360) + 360) % 360;
+      const currentRot = normalize(s.rotation || 0);
+      const diff1 = Math.abs(normalize(angle1) - currentRot);
+      const diff2 = Math.abs(normalize(angle2) - currentRot);
+      
+      const minDiff1 = Math.min(diff1, 360 - diff1);
+      const minDiff2 = Math.min(diff2, 360 - diff2);
+      
+      rotation = minDiff1 < minDiff2 ? angle1 : angle2;
+    } else {
+      nearestWallId = undefined;
+      nearestWallSide = undefined;
+      nearestWallOffset = undefined;
+      rotation = s.rotation;
+    }
+
+    return { x: newX, y: newY, rotation, attachedWallId: nearestWallId, attachedWallSide: nearestWallSide, attachedWallOffset: nearestWallOffset };
+  };
+
   const handleStairsDragEnd = (id: string, e: any) => {
     const stairs = currentFloor.stairs.find(s => s.id === id);
     if (!stairs) return;
 
-    const dx = e.currentTarget.x() - stairs.x;
-    const dy = e.currentTarget.y() - stairs.y;
+    const result = handleStairsDragMove(id, e);
+    if (!result) return;
+
+    const dx = result.x - stairs.x;
+    const dy = result.y - stairs.y;
 
     const idsToMove = selectedIds.includes(id) ? selectedIds : [id];
 
     updateCurrentFloor(floor => {
       const newStairs = floor.stairs.map(s => {
         if (idsToMove.includes(s.id)) {
-          let newX = s.x + dx;
-          let newY = s.y + dy;
-          
-          let nearestWallId = s.attachedWallId;
-          let nearestWallSide = s.attachedWallSide;
-          let nearestWallOffset = s.attachedWallOffset;
-          let rotation = s.rotation;
-
           if (s.id === id) {
-            // Snapping logic for stairs
-            const sHeight = cmToPx(s.length || 200); // Use length as depth
-            const sWidth = cmToPx(s.width || 100);
-            let minDistance = 40; // Fixed snap distance for better control
-            let foundWallId = '';
-            let foundSide = 1;
-            let foundOffset = 0;
-
-            floor.walls.forEach(wall => {
-              const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
-              // Apply a dynamic "stickiness" bias to the currently attached wall to prevent jumping in corners
-              const dimensionDiff = Math.abs(sHeight - sWidth) / 2;
-              const bias = (wall.id === s.attachedWallId) ? dimensionDiff + 20 : 0;
-              
-              if (dist - bias < minDistance) {
-                minDistance = dist - bias;
-                foundWallId = wall.id;
-                
-                const wallLen = getDistance(wall.start, wall.end);
-                const wdx = wall.end.x - wall.start.x;
-                const wdy = wall.end.y - wall.start.y;
-                const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
-                
-                // Constrain movement so the stairs don't stick out past the wall ends
-                // Since stairs are rotated 90 degrees, their length is along the wall
-                const halfLengthOffset = (sHeight / 2) / wallLen;
-                if (halfLengthOffset >= 0.5) {
-                  foundOffset = 0.5;
-                } else {
-                  foundOffset = Math.max(halfLengthOffset, Math.min(1 - halfLengthOffset, t));
-                }
-                
-                const projX = wall.start.x + foundOffset * wdx;
-                const projY = wall.start.y + foundOffset * wdy;
-
-                const nx = -wdy / wallLen;
-                const ny = wdx / wallLen;
-                const dot = (newX - projX) * nx + (newY - projY) * ny;
-                foundSide = dot >= 0 ? 1 : -1;
-              }
-            });
-
-            if (foundWallId) {
-              const wall = floor.walls.find(w => w.id === foundWallId)!;
-              const wallLen = getDistance(wall.start, wall.end);
-              const wdx = wall.end.x - wall.start.x;
-              const wdy = wall.end.y - wall.start.y;
-              const nx = -wdy / wallLen;
-              const ny = wdx / wallLen;
-              const thickness = cmToPx(wall.thickness);
-              
-              // The side of the stairs should snap to the wall, so offset by sWidth / 2
-              newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + sWidth / 2);
-              newY = wall.start.y + wdy * foundOffset + ny * foundSide * (thickness / 2 + sWidth / 2);
-              
-              nearestWallId = foundWallId;
-              nearestWallSide = foundSide;
-              nearestWallOffset = foundOffset;
-              // Rotate by 90 degrees so the length runs along the wall
-              rotation = getAngle(wall.start, wall.end) + 90;
-              if (foundSide === -1) rotation += 180;
-            } else {
-              const snapped = snapToGrid({ x: newX, y: newY });
-              newX = snapped.x;
-              newY = snapped.y;
-              nearestWallId = undefined;
-              nearestWallSide = undefined;
-              nearestWallOffset = undefined;
-            }
+            return {
+              ...s,
+              x: result.x,
+              y: result.y,
+              rotation: result.rotation,
+              attachedWallId: result.attachedWallId,
+              attachedWallSide: result.attachedWallSide,
+              attachedWallOffset: result.attachedWallOffset
+            };
+          } else {
+            return {
+              ...s,
+              x: s.x + dx,
+              y: s.y + dy
+            };
           }
-
-          return { 
-            ...s, 
-            x: newX, 
-            y: newY, 
-            rotation,
-            attachedWallId: nearestWallId,
-            attachedWallSide: nearestWallSide,
-            attachedWallOffset: nearestWallOffset
-          };
         }
         return s;
       });
@@ -1015,6 +1230,10 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     const strokeColor = isSelected ? '#3B82F6' : '#141414';
     const strokeW = isSelected ? 2 : 1;
 
+    const getTextureFill = (texture?: string, color?: string) => {
+      return color || "#F3F4F6";
+    };
+
     return (
       <Group>
         {/* Shadow/Depth effect */}
@@ -1028,6 +1247,27 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         />
         
         {/* Furniture specific details */}
+        {f.type === 'swing' && (
+          <Group>
+            {/* A-frame legs (Left) */}
+            <Line points={[-width/2, -height/2, -width/2 + 10, 0]} stroke="#4B2C20" strokeWidth={3} />
+            <Line points={[-width/2, height/2, -width/2 + 10, 0]} stroke="#4B2C20" strokeWidth={3} />
+            {/* A-frame legs (Right) */}
+            <Line points={[width/2, -height/2, width/2 - 10, 0]} stroke="#4B2C20" strokeWidth={3} />
+            <Line points={[width/2, height/2, width/2 - 10, 0]} stroke="#4B2C20" strokeWidth={3} />
+            {/* Top Bar */}
+            <Line points={[-width/2 + 10, 0, width/2 - 10, 0]} stroke="#3E2723" strokeWidth={6} />
+            {/* Seats */}
+            <Rect x={-width/4 - 15} y={-10} width={30} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+            <Rect x={width/4 - 15} y={-10} width={30} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+            {/* Chains/Ropes */}
+            <Line points={[-width/4 - 10, 0, -width/4 - 10, -5]} stroke="#8B4513" strokeWidth={1} />
+            <Line points={[-width/4 + 10, 0, -width/4 + 10, -5]} stroke="#8B4513" strokeWidth={1} />
+            <Line points={[width/4 - 10, 0, width/4 - 10, -5]} stroke="#8B4513" strokeWidth={1} />
+            <Line points={[width/4 + 10, 0, width/4 + 10, -5]} stroke="#8B4513" strokeWidth={1} />
+          </Group>
+        )}
+
         {f.type.startsWith('bed') && (
           <Group>
             {/* Bed Frame */}
@@ -1112,23 +1352,96 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
-        {f.type === 'dining_table' && (
-          <Group>
-            {/* Table */}
-            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
-            {/* Centerpiece */}
-            <Circle x={0} y={0} radius={10} fill="#90EE90" stroke={strokeColor} strokeWidth={1} />
-          </Group>
-        )}
+        {f.type === 'dining_table' && (() => {
+          const chairSpace = cmToPx(60);
+          const numChairsX = Math.floor(width / chairSpace);
+          const numChairsY = Math.floor(height / chairSpace);
+          
+          const chairs = [];
+          
+          // Top and Bottom chairs
+          if (numChairsX > 0) {
+            const spacingX = width / (numChairsX + 1);
+            for (let i = 1; i <= numChairsX; i++) {
+              const cx = -width/2 + i * spacingX;
+              chairs.push(
+                <Group key={`top-${i}`} x={cx} y={-height/2 - 10} rotation={0}>
+                  <Rect x={-12} y={-10} width={24} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                  <Rect x={-10} y={-10} width={20} height={5} fill="#A0522D" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+                </Group>
+              );
+              chairs.push(
+                <Group key={`bottom-${i}`} x={cx} y={height/2 + 10} rotation={180}>
+                  <Rect x={-12} y={-10} width={24} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                  <Rect x={-10} y={-10} width={20} height={5} fill="#A0522D" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+                </Group>
+              );
+            }
+          }
+          
+          // Left and Right chairs
+          if (numChairsY > 0) {
+            const spacingY = height / (numChairsY + 1);
+            for (let i = 1; i <= numChairsY; i++) {
+              const cy = -height/2 + i * spacingY;
+              chairs.push(
+                <Group key={`left-${i}`} x={-width/2 - 10} y={cy} rotation={-90}>
+                  <Rect x={-12} y={-10} width={24} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                  <Rect x={-10} y={-10} width={20} height={5} fill="#A0522D" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+                </Group>
+              );
+              chairs.push(
+                <Group key={`right-${i}`} x={width/2 + 10} y={cy} rotation={90}>
+                  <Rect x={-12} y={-10} width={24} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                  <Rect x={-10} y={-10} width={20} height={5} fill="#A0522D" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+                </Group>
+              );
+            }
+          }
 
-        {f.type === 'dining_table_round' && (
-          <Group>
-            {/* Round Table */}
-            <Circle x={0} y={0} radius={Math.min(width, height) / 2} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} />
-            {/* Centerpiece */}
-            <Circle x={0} y={0} radius={10} fill="#90EE90" stroke={strokeColor} strokeWidth={1} />
-          </Group>
-        )}
+          return (
+            <Group>
+              {chairs}
+              {/* Table */}
+              <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={8} />
+              {/* Centerpiece */}
+              <Circle x={0} y={0} radius={10} fill="#90EE90" stroke={strokeColor} strokeWidth={1} />
+            </Group>
+          );
+        })()}
+
+        {f.type === 'dining_table_round' && (() => {
+          const diameter = Math.min(width, height);
+          const radius = diameter / 2;
+          const chairSpace = cmToPx(60);
+          const perimeter = Math.PI * diameter;
+          const numChairs = Math.max(1, Math.floor(perimeter / chairSpace));
+          
+          const chairs = [];
+          for (let i = 0; i < numChairs; i++) {
+            const angle = (i * 360) / numChairs;
+            const rad = (angle * Math.PI) / 180;
+            const cx = Math.sin(rad) * (radius + 10);
+            const cy = -Math.cos(rad) * (radius + 10);
+            
+            chairs.push(
+              <Group key={`chair-${i}`} x={cx} y={cy} rotation={angle}>
+                <Rect x={-12} y={-10} width={24} height={20} fill="#D2B48C" stroke={strokeColor} strokeWidth={1} cornerRadius={4} />
+                <Rect x={-10} y={-10} width={20} height={5} fill="#A0522D" stroke={strokeColor} strokeWidth={1} cornerRadius={2} />
+              </Group>
+            );
+          }
+
+          return (
+            <Group>
+              {chairs}
+              {/* Round Table */}
+              <Circle x={0} y={0} radius={radius} fill="#DEB887" stroke={strokeColor} strokeWidth={strokeW} />
+              {/* Centerpiece */}
+              <Circle x={0} y={0} radius={10} fill="#90EE90" stroke={strokeColor} strokeWidth={1} />
+            </Group>
+          );
+        })()}
 
         {f.type === 'coffee_table' && (
           <Group>
@@ -1397,12 +1710,9 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         {f.type === 'kitchen_counter' && (
           <Group>
             {/* Countertop - NO rounded corners */}
-            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F3F4F6" stroke={strokeColor} strokeWidth={strokeW} />
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill={getTextureFill(f.texture, f.color)} stroke={strokeColor} strokeWidth={strokeW} />
             {/* Front edge detail */}
-            <Line points={[-width/2, height/2 - 5, width/2, height/2 - 5]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
-            {/* Texture/Pattern (simple lines) */}
-            <Line points={[-width/4, -height/2, -width/4, height/2]} stroke={strokeColor} strokeWidth={0.2} opacity={0.2} />
-            <Line points={[width/4, -height/2, width/4, height/2]} stroke={strokeColor} strokeWidth={0.2} opacity={0.2} />
+            <Line points={[-width/2, height/2 - 2, width/2, height/2 - 2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
           </Group>
         )}
 
@@ -1482,8 +1792,111 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
+        {f.type === 'bbq' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#374151" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
+            <Rect x={-width/2 + 5} y={-height/2 + 5} width={width - 10} height={height/2} fill="#1F2937" stroke={strokeColor} strokeWidth={0.5} cornerRadius={2} />
+            <Line points={[-width/2 + 10, -height/2 + 10, width/2 - 10, -height/2 + 10]} stroke="#4B5563" strokeWidth={1} />
+            <Line points={[-width/2 + 10, -height/2 + 15, width/2 - 10, -height/2 + 15]} stroke="#4B5563" strokeWidth={1} />
+            <Circle x={-width/4} y={height/4} radius={5} fill="#9CA3AF" />
+            <Circle x={width/4} y={height/4} radius={5} fill="#9CA3AF" />
+          </Group>
+        )}
+
+        {f.type === 'sunbed' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#FFFFFF" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
+            <Rect x={-width/2 + 5} y={-height/2 + 5} width={width - 10} height={height/3} fill="#E5E7EB" stroke={strokeColor} strokeWidth={0.5} cornerRadius={1} />
+            <Line points={[-width/2, -height/6, width/2, -height/6]} stroke={strokeColor} strokeWidth={0.5} />
+            <Line points={[-width/2, height/6, width/2, height/6]} stroke={strokeColor} strokeWidth={0.5} />
+          </Group>
+        )}
+
+        {f.type === 'pool' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#BAE6FD" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={10} />
+            <Rect x={-width/2 + 15} y={-height/2 + 15} width={width - 30} height={height - 30} fill="#7DD3FC" stroke="#0EA5E9" strokeWidth={0.5} cornerRadius={5} />
+            {/* Steps */}
+            <Rect x={-width/2 + 20} y={-height/2 + 20} width={40} height={10} fill="#F0F9FF" opacity={0.6} />
+            <Rect x={-width/2 + 20} y={-height/2 + 30} width={40} height={10} fill="#F0F9FF" opacity={0.4} />
+          </Group>
+        )}
+
+        {f.type === 'billiards' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#166534" stroke="#064E3B" strokeWidth={strokeW + 2} cornerRadius={4} />
+            {/* Pockets */}
+            <Circle x={-width/2 + 5} y={-height/2 + 5} radius={8} fill="#111" />
+            <Circle x={width/2 - 5} y={-height/2 + 5} radius={8} fill="#111" />
+            <Circle x={-width/2 + 5} y={height/2 - 5} radius={8} fill="#111" />
+            <Circle x={width/2 - 5} y={height/2 - 5} radius={8} fill="#111" />
+            <Circle x={0} y={-height/2 + 2} radius={6} fill="#111" />
+            <Circle x={0} y={height/2 - 2} radius={6} fill="#111" />
+            {/* Balls */}
+            <Circle x={width/4} y={0} radius={3} fill="white" />
+            <Circle x={-width/4} y={-10} radius={3} fill="red" />
+            <Circle x={-width/4} y={10} radius={3} fill="yellow" />
+          </Group>
+        )}
+
+        {f.type === 'foosball' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#15803D" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
+            {/* Bars - Vertical across the table */}
+            {[-0.35, -0.15, 0.15, 0.35].map((pos, i) => {
+              const isEven = i % 2 === 0;
+              const barX = width * pos;
+              return (
+                <Group key={i}>
+                  {/* Bar */}
+                  <Line points={[barX, -height/2 - 15, barX, height/2 + 15]} stroke="#9CA3AF" strokeWidth={2} />
+                  {/* Handles - Alternating sides */}
+                  <Rect 
+                    x={barX - 4} 
+                    y={isEven ? -height/2 - 25 : height/2 + 15} 
+                    width={8} 
+                    height={10} 
+                    fill="#451a03" 
+                    cornerRadius={2} 
+                  />
+                  {/* Players (dots) */}
+                  {[-0.3, 0, 0.3].map((pPos, j) => (
+                    <Circle key={j} x={barX} y={height * pPos} radius={4} fill={isEven ? "red" : "blue"} />
+                  ))}
+                </Group>
+              );
+            })}
+          </Group>
+        )}
+
+        {f.type === 'ping_pong' && (
+          <Group>
+            {/* Table Surface */}
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#1E40AF" stroke={strokeColor} strokeWidth={strokeW} />
+            {/* Perimeter Lines */}
+            <Rect x={-width/2 + 2} y={-height/2 + 2} width={width - 4} height={height - 4} fill="transparent" stroke="white" strokeWidth={1} />
+            {/* Center Line (Longitudinal) */}
+            <Line points={[-width/2, 0, width/2, 0]} stroke="white" strokeWidth={1} />
+            {/* Net */}
+            <Rect x={-2} y={-height/2 - 10} width={4} height={height + 20} fill="#111" opacity={0.8} />
+            <Line points={[0, -height/2 - 10, 0, height/2 + 10]} stroke="#FFFFFF" strokeWidth={0.5} dash={[2, 2]} />
+          </Group>
+        )}
+
+        {f.type === 'arcade' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#1F2937" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
+            {/* Screen */}
+            <Rect x={-width/2 + 5} y={-height/2 + 5} width={width - 10} height={height/2} fill="#000" stroke="#3B82F6" strokeWidth={1} />
+            {/* Controls */}
+            <Circle x={-width/4} y={height/4} radius={4} fill="red" />
+            <Circle x={0} y={height/4} radius={3} fill="yellow" />
+            <Circle x={width/4} y={height/4} radius={3} fill="green" />
+          </Group>
+        )}
+
         {/* Fallback for any other furniture type */}
-        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool'].includes(f.type) && (
+        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool', 'bbq', 'sunbed', 'pool', 'billiards', 'foosball', 'ping_pong', 'arcade', 'rug', 'swing'].includes(f.type) && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5F5" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
             <Line points={[-width/2, -height/2, width/2, height/2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
@@ -2080,7 +2493,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             const area = calculateArea(room.points, project.gridSize * 2);
             
             // Better floor colors
-            const getFillColor = (color: string) => {
+            const getFillColor = (color: string, texture?: string) => {
               if (color === '#9CA3AF') return 'rgba(156, 163, 175, 0.3)'; // Gray 400
               if (color === '#EC4899') return 'rgba(236, 72, 153, 0.3)';  // Pink 500
               if (color === '#22C55E') return 'rgba(34, 197, 94, 0.3)';   // Green 500
@@ -2117,7 +2530,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                     }
                     return [p.x, p.y];
                   })}
-                  fill={getFillColor(room.color)}
+                  fill={getFillColor(room.color, room.texture)}
                   opacity={0.8}
                   closed
                   stroke={isSelected ? "#3b82f6" : "#141414"}
@@ -2400,8 +2813,80 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 </Group>
                 {isSelected && (
                   <>
-                    <Circle x={wall.start.x} y={wall.start.y} radius={5} fill="white" stroke="#3b82f6" />
-                    <Circle x={wall.end.x} y={wall.end.y} radius={5} fill="white" stroke="#3b82f6" />
+                    <Circle 
+                      x={wall.start.x} 
+                      y={wall.start.y} 
+                      radius={8} 
+                      fill="white" 
+                      stroke="#3b82f6" 
+                      draggable 
+                      onDragMove={(e) => {
+                        const stage = e.target.getStage();
+                        const worldPos = getRelativePointerPosition(stage);
+                        const snapped = snapToGrid(worldPos);
+                        
+                        updateCurrentFloor(floor => {
+                          const wallToUpdate = floor.walls.find(w => w.id === wall.id);
+                          if (!wallToUpdate) return floor;
+
+                          const oldPoint = wallToUpdate.start;
+                          const newPoint = snapped;
+
+                          return {
+                            ...floor,
+                            walls: floor.walls.map(w => {
+                              let updatedW = { ...w };
+                              if (getDistance(w.start, oldPoint) < 2) updatedW.start = newPoint;
+                              if (getDistance(w.end, oldPoint) < 2) updatedW.end = newPoint;
+                              return updatedW;
+                            }),
+                            rooms: floor.rooms.map(r => ({
+                              ...r,
+                              points: r.points.map(p => getDistance(p, oldPoint) < 2 ? newPoint : p)
+                            }))
+                          };
+                        });
+                        e.target.x(wall.start.x);
+                        e.target.y(wall.start.y);
+                      }}
+                    />
+                    <Circle 
+                      x={wall.end.x} 
+                      y={wall.end.y} 
+                      radius={8} 
+                      fill="white" 
+                      stroke="#3b82f6" 
+                      draggable
+                      onDragMove={(e) => {
+                        const stage = e.target.getStage();
+                        const worldPos = getRelativePointerPosition(stage);
+                        const snapped = snapToGrid(worldPos);
+                        
+                        updateCurrentFloor(floor => {
+                          const wallToUpdate = floor.walls.find(w => w.id === wall.id);
+                          if (!wallToUpdate) return floor;
+
+                          const oldPoint = wallToUpdate.end;
+                          const newPoint = snapped;
+
+                          return {
+                            ...floor,
+                            walls: floor.walls.map(w => {
+                              let updatedW = { ...w };
+                              if (getDistance(w.start, oldPoint) < 2) updatedW.start = newPoint;
+                              if (getDistance(w.end, oldPoint) < 2) updatedW.end = newPoint;
+                              return updatedW;
+                            }),
+                            rooms: floor.rooms.map(r => ({
+                              ...r,
+                              points: r.points.map(p => getDistance(p, oldPoint) < 2 ? newPoint : p)
+                            }))
+                          };
+                        });
+                        e.target.x(wall.end.x);
+                        e.target.y(wall.end.y);
+                      }}
+                    />
                   </>
                 )}
               </Group>
@@ -2436,6 +2921,14 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
               scaleX={item.scaleX || 1}
               scaleY={item.scaleY || 1}
               draggable={activeTool === ToolType.SELECT}
+              onDragMove={(e) => {
+                const newStairs = handleStairsDragMove(item.id, e);
+                if (newStairs) {
+                  e.target.x(newStairs.x);
+                  e.target.y(newStairs.y);
+                  e.target.rotation(newStairs.rotation);
+                }
+              }}
               onDragEnd={(e) => handleStairsDragEnd(item.id, e)}
               onClick={(e) => { 
                 if (activeTool === ToolType.SELECT) {
@@ -2494,6 +2987,14 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
                 if (activeTool === ToolType.SELECT) {
                   e.cancelBubble = true; 
                   onSelect([item.id]); 
+                }
+              }}
+              onDragMove={(e) => {
+                const newPos = handleFurnitureDragMove(item.id, e);
+                if (newPos) {
+                  e.target.x(newPos.x);
+                  e.target.y(newPos.y);
+                  e.target.rotation(newPos.rotation);
                 }
               }}
               onDragEnd={(e) => handleFurnitureDragEnd(item.id, e)}

@@ -306,7 +306,7 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
           <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.transformation')}</label>
           <div className="flex gap-2">
             <button 
-              onClick={() => onUpdate({ ...item, rotation: (item.rotation || 0) + 90 })}
+              onClick={() => onUpdate({ ...item, rotation: (item.rotation || 0) + 45 })}
               className="flex-1 flex items-center justify-center gap-2 py-2 border border-[#141414]/10 rounded hover:bg-[#141414]/5 transition-colors"
             >
               <RotateCcw size={14} />
@@ -332,19 +332,27 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
         </section>
       )}
 
-      {/* Color / Style */}
-      {isRoom && (
-        <section className="space-y-4">
-          <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.color')}</label>
-          <div className="flex gap-2 flex-wrap">
-            {['#9CA3AF', '#EC4899', '#22C55E', '#3B82F6', '#F59E0B', '#8B5CF6'].map(color => (
-              <button
-                key={color}
-                onClick={() => onUpdate({ ...item, color })}
-                className="w-8 h-8 rounded-full border border-[#141414]/10 transition-transform hover:scale-110"
-                style={{ backgroundColor: color, outline: item.color === color ? '2px solid #141414' : 'none' }}
+      {/* Color / Style / Texture */}
+      {(isRoom || isFurniture) && (
+        <section className="space-y-6">
+          <div className="space-y-4">
+            <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.color')}</label>
+            <div className="flex gap-2 flex-wrap">
+              {['#9CA3AF', '#EC4899', '#22C55E', '#3B82F6', '#F59E0B', '#8B5CF6', '#FFFFFF', '#141414'].map(color => (
+                <button
+                  key={color}
+                  onClick={() => onUpdate({ ...item, color })}
+                  className="w-8 h-8 rounded-full border border-[#141414]/10 transition-transform hover:scale-110"
+                  style={{ backgroundColor: color, outline: item.color === color ? '2px solid #141414' : 'none' }}
+                />
+              ))}
+              <input 
+                type="color" 
+                value={item.color || '#9CA3AF'} 
+                onChange={(e) => onUpdate({ ...item, color: e.target.value })}
+                className="w-8 h-8 rounded-full border border-[#141414]/10 cursor-pointer overflow-hidden p-0"
               />
-            ))}
+            </div>
           </div>
         </section>
       )}

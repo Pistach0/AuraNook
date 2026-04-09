@@ -66,6 +66,8 @@ export const CATEGORIES = [
   { id: 'bathroom', name: 'Baño', icon: '🚿' },
   { id: 'office', name: 'Oficina', icon: '🖥️' },
   { id: 'garage', name: 'Garaje', icon: '🚗' },
+  { id: 'exterior', name: 'Exterior', icon: '🌳' },
+  { id: 'games', name: 'Sala de juegos', icon: '🎮' },
 ];
 
 export const FURNITURE_TEMPLATES = [
@@ -100,4 +102,12 @@ export const FURNITURE_TEMPLATES = [
   { type: 'shelf', name: 'Estantería Metálica', category: 'garage', width: 100, height: 40 },
   { type: 'washing_machine', name: 'Lavadora', category: 'garage', width: 60, height: 60 },
   { type: 'dryer', name: 'Secadora', category: 'garage', width: 60, height: 60 },
+  { type: 'bbq', name: 'Barbacoa', category: 'exterior', width: 100, height: 60 },
+  { type: 'sunbed', name: 'Tumbona', category: 'exterior', width: 70, height: 190 },
+  { type: 'pool', name: 'Piscina', category: 'exterior', width: 600, height: 300 },
+  { type: 'swing', name: 'Columpio', category: 'exterior', width: 200, height: 150 },
+  { type: 'billiards', name: 'Billar', category: 'games', width: 250, height: 140 },
+  { type: 'foosball', name: 'Futbolín', category: 'games', width: 140, height: 80 },
+  { type: 'ping_pong', name: 'Mesa Ping Pong', category: 'games', width: 274, height: 152 },
+  { type: 'arcade', name: 'Máquina Arcade', category: 'games', width: 70, height: 70 },
 ];
