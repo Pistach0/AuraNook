@@ -1,14 +1,15 @@
 import { Wall, Room, Furniture } from '../types';
-import { RotateCcw, FlipHorizontal, Type, Palette, Maximize, Move, Plus, Trash2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { RotateCcw, FlipHorizontal, Type, Palette, Maximize, Move, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { cn, calculateArea } from '../lib/utils';
 import { useSettings } from '../context/SettingsContext';
 
 interface PropertiesPanelProps {
   item: any;
+  gridSize?: number;
   onUpdate: (item: any) => void;
 }
 
-export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
+export function PropertiesPanel({ item, gridSize = 20, onUpdate }: PropertiesPanelProps) {
   const { t, unit } = useSettings();
 
   const displayValue = (cm: number) => {
@@ -54,7 +55,7 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
                   name: selectedOption.text !== 'Seleccionar...' ? selectedOption.text : item.name
                 });
               }}
-              className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none"
+              className="w-full bg-[#141414]/5 rounded p-2 text-sm focus:outline-none mb-2"
             >
               <option value="">Seleccionar...</option>
               <option value="dormitorio">Dormitorio</option>
@@ -76,8 +77,15 @@ export function PropertiesPanel({ item, onUpdate }: PropertiesPanelProps) {
               <option value="lavadero">Lavadero</option>
               <option value="vestidor">Vestidor</option>
               <option value="gimnasio">Gimnasio</option>
-              <option value="sala_juegos">Sala de juegos</option>
+              <option value="sala_juegos">Sala de Juegos</option>
             </select>
+            
+            {item.roomType === 'dormitorio' && calculateArea(item.points, gridSize * 2) < 6 && (
+              <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 text-amber-700 rounded border border-amber-200 text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>Un dormitorio debe tener al menos 6m². Esta habitación no será válida como dormitorio en los retos.</p>
+              </div>
+            )}
           </div>
         )}
       </section>

@@ -1114,6 +1114,7 @@ export default function App() {
                   {selectedIds.length === 1 && (
                     <PropertiesPanel 
                       item={selectedItem} 
+                      gridSize={project.gridSize}
                       onUpdate={(updated) => {
                         updateCurrentFloor(floor => ({
                           ...floor,

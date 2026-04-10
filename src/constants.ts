@@ -77,6 +77,7 @@ export const FURNITURE_TEMPLATES = [
   { type: 'armchair', name: 'Sillón', category: 'living', width: 90, height: 90 },
   { type: 'fireplace', name: 'Chimenea', category: 'living', width: 120, height: 40 },
   { type: 'tv_unit', name: 'Mueble TV', category: 'living', width: 180, height: 40 },
+  { type: 'bookshelf', name: 'Estantería', category: 'living', width: 100, height: 35 },
   { type: 'plant', name: 'Planta', category: 'living', width: 50, height: 50 },
   { type: 'dining_table', name: 'Mesa Comedor', category: 'living', width: 160, height: 90 },
   { type: 'dining_table_round', name: 'Mesa Comedor Redonda', category: 'living', width: 120, height: 120 },

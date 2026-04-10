@@ -492,6 +492,11 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     let nearestWallOffset = f.attachedWallOffset;
     let snappedToCounter = false;
 
+    const nonSnappingTypes = ['car', 'chair', 'office_chair', 'dining_table', 'dining_table_round', 'coffee_table', 'desk', 'kitchen_stool'];
+    if (nonSnappingTypes.includes(f.type)) {
+      return { x: newX, y: newY, rotation, attachedWallId: undefined, attachedWallSide: undefined, attachedWallOffset: undefined };
+    }
+
     // Counter snapping logic
     if (f.type === 'kitchen_counter') {
       const fWidth = cmToPx(f.width);
@@ -635,15 +640,32 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         
         const halfWidthOffset = (finalSnapWidth / 2) / wallLen;
         
+        let minOffset = halfWidthOffset;
         if (f.type === 'kitchen_counter') {
-          const minOffset = (finalSnapWidth / 2 + thickness / 2) / wallLen;
-          foundOffset = Math.max(minOffset, Math.min(1 - minOffset, foundOffset));
-        } else {
-          if (halfWidthOffset >= 0.5) {
-            foundOffset = 0.5;
-          } else {
-            foundOffset = Math.max(halfWidthOffset, Math.min(1 - halfWidthOffset, foundOffset));
+          minOffset = (finalSnapWidth / 2 + thickness / 2) / wallLen;
+        }
+        
+        let canExtendStart = false;
+        let canExtendEnd = false;
+        
+        floor.walls.forEach(w => {
+          if (w.id === wall.id) return;
+          const wAngle = getAngle(w.start, w.end);
+          const wallAngle = getAngle(wall.start, wall.end);
+          const diff = Math.abs((wallAngle - wAngle) % 180);
+          if (diff < 1 || diff > 179) {
+            if (getDistance(w.start, wall.start) < 1 || getDistance(w.end, wall.start) < 1) canExtendStart = true;
+            if (getDistance(w.start, wall.end) < 1 || getDistance(w.end, wall.end) < 1) canExtendEnd = true;
           }
+        });
+        
+        const lowerBound = canExtendStart ? -Infinity : minOffset;
+        const upperBound = canExtendEnd ? Infinity : (1 - minOffset);
+        
+        if (minOffset >= 0.5 && !canExtendStart && !canExtendEnd) {
+          foundOffset = 0.5;
+        } else {
+          foundOffset = Math.max(lowerBound, Math.min(upperBound, foundOffset));
         }
 
         newX = wall.start.x + wdx * foundOffset + nx * foundSide * (thickness / 2 + finalSnapDepth / 2);
@@ -661,40 +683,36 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
 
       // Pass 2: Push out of ANY overlapping walls (e.g. in corners)
       floor.walls.forEach(wall => {
-        const dist = getDistanceToSegment({ x: newX, y: newY }, wall.start, wall.end);
+        if (wall.id === nearestWallId) return; // Don't push out of the wall we are snapped to
+        
         const wallLen = getDistance(wall.start, wall.end);
         if (wallLen === 0) return;
         
         const wdx = wall.end.x - wall.start.x;
         const wdy = wall.end.y - wall.start.y;
-        const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
+        const tx = wdx / wallLen;
+        const ty = wdy / wallLen;
+        const nx = -ty;
+        const ny = tx;
         
-        const projX = wall.start.x + t * wdx;
-        const projY = wall.start.y + t * wdy;
-        const nx = -wdy / wallLen;
-        const ny = wdx / wallLen;
-        const dot = (newX - projX) * nx + (newY - projY) * ny;
-        const side = dot >= 0 ? 1 : -1;
+        const distToLine = (newX - wall.start.x) * nx + (newY - wall.start.y) * ny;
+        const t = (newX - wall.start.x) * tx + (newY - wall.start.y) * ty;
         
-        let wallAngle = getAngle(wall.start, wall.end);
-        let baseAngle = side === -1 ? wallAngle + 180 : wallAngle;
-        let angleDiff = (rotation - baseAngle) % 360;
-        if (angleDiff < 0) angleDiff += 360;
+        const wallAngle = getAngle(wall.start, wall.end);
+        const radDiff = (rotation - wallAngle) * Math.PI / 180;
         
-        let snapAngleOffset = 0;
-        if (angleDiff >= 45 && angleDiff < 135) snapAngleOffset = 90;
-        else if (angleDiff >= 135 && angleDiff < 225) snapAngleOffset = 180;
-        else if (angleDiff >= 225 && angleDiff < 315) snapAngleOffset = 270;
-        
-        let currentSnapDepth = (snapAngleOffset === 90 || snapAngleOffset === 270) ? fWidth : fHeight;
+        const sizeAlongNormal = Math.abs(fWidth * Math.sin(radDiff)) + Math.abs(fHeight * Math.cos(radDiff));
+        const sizeAlongTangent = Math.abs(fWidth * Math.cos(radDiff)) + Math.abs(fHeight * Math.sin(radDiff));
         
         const thickness = cmToPx(wall.thickness);
-        const overlapDist = currentSnapDepth / 2 + thickness / 2;
+        const overlapNormal = sizeAlongNormal / 2 + thickness / 2;
+        const overlapTangent = sizeAlongTangent / 2;
         
-        if (dist < overlapDist - 0.1) { // 0.1 margin for floating point
-          const pushDist = overlapDist - dist;
-          newX += nx * side * pushDist;
-          newY += ny * side * pushDist;
+        if (Math.abs(distToLine) < overlapNormal - 0.1 && t > -overlapTangent + 0.1 && t < wallLen + overlapTangent - 0.1) {
+          const pushDist = overlapNormal - Math.abs(distToLine);
+          const pushDir = distToLine >= 0 ? 1 : -1;
+          newX += nx * pushDir * pushDist;
+          newY += ny * pushDir * pushDist;
         }
       });
     }
@@ -986,10 +1004,28 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         const t = ((newX - wall.start.x) * wdx + (newY - wall.start.y) * wdy) / (wallLen * wallLen);
         
         const halfLengthOffset = (sHeight / 2) / wallLen;
-        if (halfLengthOffset >= 0.5) {
+        
+        let canExtendStart = false;
+        let canExtendEnd = false;
+        
+        floor.walls.forEach(w => {
+          if (w.id === wall.id) return;
+          const wAngle = getAngle(w.start, w.end);
+          const wallAngle = getAngle(wall.start, wall.end);
+          const diff = Math.abs((wallAngle - wAngle) % 180);
+          if (diff < 1 || diff > 179) {
+            if (getDistance(w.start, wall.start) < 1 || getDistance(w.end, wall.start) < 1) canExtendStart = true;
+            if (getDistance(w.start, wall.end) < 1 || getDistance(w.end, wall.end) < 1) canExtendEnd = true;
+          }
+        });
+        
+        const lowerBound = canExtendStart ? -Infinity : halfLengthOffset;
+        const upperBound = canExtendEnd ? Infinity : (1 - halfLengthOffset);
+        
+        if (halfLengthOffset >= 0.5 && !canExtendStart && !canExtendEnd) {
           foundOffset = 0.5;
         } else {
-          foundOffset = Math.max(halfLengthOffset, Math.min(1 - halfLengthOffset, t));
+          foundOffset = Math.max(lowerBound, Math.min(upperBound, t));
         }
         
         const projX = wall.start.x + foundOffset * wdx;
@@ -1040,6 +1076,41 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       nearestWallOffset = undefined;
       rotation = s.rotation;
     }
+
+    // Pass 2: Push out of ANY overlapping walls (e.g. in corners)
+    floor.walls.forEach(wall => {
+      if (wall.id === nearestWallId) return; // Don't push out of the wall we are snapped to
+      
+      const wallLen = getDistance(wall.start, wall.end);
+      if (wallLen === 0) return;
+      
+      const wdx = wall.end.x - wall.start.x;
+      const wdy = wall.end.y - wall.start.y;
+      const tx = wdx / wallLen;
+      const ty = wdy / wallLen;
+      const nx = -ty;
+      const ny = tx;
+      
+      const distToLine = (newX - wall.start.x) * nx + (newY - wall.start.y) * ny;
+      const t = (newX - wall.start.x) * tx + (newY - wall.start.y) * ty;
+      
+      const wallAngle = getAngle(wall.start, wall.end);
+      const radDiff = (rotation - wallAngle) * Math.PI / 180;
+      
+      const sizeAlongNormal = Math.abs(sWidth * Math.sin(radDiff)) + Math.abs(sHeight * Math.cos(radDiff));
+      const sizeAlongTangent = Math.abs(sWidth * Math.cos(radDiff)) + Math.abs(sHeight * Math.sin(radDiff));
+      
+      const thickness = cmToPx(wall.thickness);
+      const overlapNormal = sizeAlongNormal / 2 + thickness / 2;
+      const overlapTangent = sizeAlongTangent / 2;
+      
+      if (Math.abs(distToLine) < overlapNormal - 0.1 && t > -overlapTangent + 0.1 && t < wallLen + overlapTangent - 0.1) {
+        const pushDist = overlapNormal - Math.abs(distToLine);
+        const pushDir = distToLine >= 0 ? 1 : -1;
+        newX += nx * pushDir * pushDist;
+        newY += ny * pushDir * pushDist;
+      }
+    });
 
     return { x: newX, y: newY, rotation, attachedWallId: nearestWallId, attachedWallSide: nearestWallSide, attachedWallOffset: nearestWallOffset };
   };
@@ -1532,6 +1603,25 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
+        {f.type === 'bookshelf' && (
+          <Group>
+            <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#D2B48C" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={2} />
+            {/* Bookshelf lines */}
+            <Line points={[-width/2, -height/4, width/2, -height/4]} stroke="#8B4513" strokeWidth={1} />
+            <Line points={[-width/2, 0, width/2, 0]} stroke="#8B4513" strokeWidth={1} />
+            <Line points={[-width/2, height/4, width/2, height/4]} stroke="#8B4513" strokeWidth={1} />
+            {/* Books on shelf */}
+            <Rect x={-width/3} y={-height/2 + 2} width={5} height={height/4 - 4} fill="#B22222" />
+            <Rect x={-width/3 + 6} y={-height/2 + 2} width={5} height={height/4 - 4} fill="#4682B4" />
+            <Rect x={-width/3 + 12} y={-height/2 + 2} width={5} height={height/4 - 4} fill="#2E8B57" />
+            
+            <Rect x={0} y={-height/4 + 2} width={5} height={height/4 - 4} fill="#DAA520" />
+            <Rect x={6} y={-height/4 + 2} width={5} height={height/4 - 4} fill="#8B4513" />
+            
+            <Rect x={width/4} y={0 + 2} width={5} height={height/4 - 4} fill="#4B0082" />
+          </Group>
+        )}
+
         {f.type === 'bathroom_sink' && (
           <Group>
             {/* Modern Minimalist Vanity/Sink - Fewer Borders */}
@@ -1840,7 +1930,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         )}
 
         {/* Fallback for any other furniture type */}
-        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool', 'bbq', 'sunbed', 'pool', 'billiards', 'foosball', 'ping_pong', 'arcade', 'rug', 'swing'].includes(f.type) && (
+        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'bookshelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool', 'bbq', 'sunbed', 'pool', 'billiards', 'foosball', 'ping_pong', 'arcade', 'rug', 'swing'].includes(f.type) && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5F5" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
             <Line points={[-width/2, -height/2, width/2, height/2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />

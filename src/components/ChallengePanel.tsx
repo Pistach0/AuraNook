@@ -17,17 +17,30 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
   const [isGenerating, setIsGenerating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [difficulty, setDifficulty] = useState<'facil' | 'medio' | 'dificil'>('medio');
 
   const generateChallenge = async () => {
     setIsGenerating(true);
     setError(null);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      let difficultyPrompt = '';
+      if (difficulty === 'facil') {
+        difficultyPrompt = 'Nivel FÁCIL: Pocos requisitos (2 o 3), restricciones muy holgadas, espacios grandes permitidos. Ideal para principiantes.';
+      } else if (difficulty === 'medio') {
+        difficultyPrompt = 'Nivel MEDIO: Requisitos estándar (3 o 4), restricciones normales. Un reto equilibrado.';
+      } else {
+        difficultyPrompt = 'Nivel DIFÍCIL: Muchos requisitos (4 a 6), restricciones muy estrictas (ej. áreas máximas muy pequeñas, muchos muebles específicos requeridos). Un verdadero rompecabezas arquitectónico.';
+      }
+      
+      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE al menos estos dos requisitos:\n1. Un área máxima (`max_area`).\n2. Un requisito de dormitorios (usando `room_type` con valor "dormitorio", o `double_bedroom_count`, o `single_bedroom_count`) O un requisito de camas (usando `specific_furniture` con valor "cama").';
+
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: 'Genera un desafío de diseño de interiores o arquitectura para una aplicación de diseño de planos. Debe ser creativo y divertido. Usa los siguientes tipos de habitación permitidos si pides un tipo específico: dormitorio, baño, cocina, salon, comedor, salon_comedor_cocina, despacho, porche, patio, terraza, despensa, bodega, entrada, pasillo, ascensor, garaje, lavadero, vestidor, gimnasio, sala_juegos.',
+        contents: `Genera un desafío de diseño de interiores o arquitectura para una aplicación de diseño de planos. Debe ser creativo y divertido. \n\n${difficultyPrompt}\n\n${mandatoryRequirements}\n\nUsa los siguientes tipos de habitación permitidos si pides un tipo específico: dormitorio, baño, cocina, salon, comedor, salon_comedor_cocina, despacho, porche, patio, terraza, despensa, bodega, entrada, pasillo, ascensor, garaje, lavadero, vestidor, gimnasio, sala_juegos.\n\nAdemás de limitación por m2, puedes indicar la medida máxima de ancho x largo de la zona edificable (ej. 10x20), indicar si es una vivienda independiente, entre medianeras o pareada (para el tema de la luz natural), y jugar con varias plantas.\n\nDistingue entre dormitorio doble (mín. 10m2) y dormitorio individual (entre 6 y 10m2).`,
         config: {
-          systemInstruction: 'Eres un experto en diseño de interiores y arquitectura. Crea desafíos para usuarios de una app de diseño de planos. Para el área, usa siempre "max_area" (área máxima permitida en m2).',
+          systemInstruction: 'Eres un experto en diseño de interiores y arquitectura. Crea desafíos para usuarios de una app de diseño de planos.',
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -42,9 +55,9 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
                     id: { type: Type.STRING },
                     type: { 
                       type: Type.STRING, 
-                      description: 'Debe ser uno de: room_count, furniture_count, max_area, specific_furniture, room_type' 
+                      description: 'Debe ser uno de: room_count, furniture_count, max_area, max_dimensions, dwelling_type, floors_count, double_bedroom_count, single_bedroom_count, specific_furniture, room_type' 
                     },
-                    targetValue: { type: Type.STRING, description: 'El valor objetivo (ej. "3", "bed", "50", "cocina")' },
+                    targetValue: { type: Type.STRING, description: 'El valor objetivo (ej. "3", "bed", "50", "10x20", "independiente", "2")' },
                     description: { type: Type.STRING, description: 'Descripción legible del requisito' }
                   },
                   required: ['id', 'type', 'targetValue', 'description']
@@ -76,6 +89,26 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const hasWindow = (room: Room, floor: Floor): boolean => {
+    const roomWalls = floor.walls.filter(wall => {
+      for (let i = 0; i < room.points.length; i++) {
+        const p1 = room.points[i];
+        const p2 = room.points[(i + 1) % room.points.length];
+        
+        const match1 = (Math.abs(wall.start.x - p1.x) < 1 && Math.abs(wall.start.y - p1.y) < 1) &&
+                       (Math.abs(wall.end.x - p2.x) < 1 && Math.abs(wall.end.y - p2.y) < 1);
+        const match2 = (Math.abs(wall.start.x - p2.x) < 1 && Math.abs(wall.start.y - p2.y) < 1) &&
+                       (Math.abs(wall.end.x - p1.x) < 1 && Math.abs(wall.end.y - p1.y) < 1);
+                       
+        if (match1 || match2) return true;
+      }
+      return false;
+    });
+
+    const roomWallIds = new Set(roomWalls.map(w => w.id));
+    return floor.openings.some(o => o.type === 'window' && roomWallIds.has(o.wallId));
   };
 
   const validateChallenge = () => {
@@ -113,8 +146,62 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
           case 'specific_furniture': {
             const targetType = (req.targetValue as string).toLowerCase();
             let found = false;
+            
+            const esToEn: Record<string, string[]> = {
+              'bañera': ['bathtub'],
+              'cama': ['bed'],
+              'sofa': ['sofa', 'couch', 'chaiselongue'],
+              'sofá': ['sofa', 'couch', 'chaiselongue'],
+              'mesa': ['table', 'desk'],
+              'silla': ['chair', 'stool'],
+              'inodoro': ['toilet', 'wc'],
+              'lavabo': ['sink', 'washbasin'],
+              'ducha': ['shower'],
+              'armario': ['wardrobe', 'closet', 'cabinet'],
+              'estanteria': ['shelf', 'bookshelf'],
+              'estantería': ['shelf', 'bookshelf'],
+              'nevera': ['fridge', 'refrigerator'],
+              'horno': ['oven', 'stove'],
+              'lavadora': ['washing_machine', 'washer'],
+              'tv': ['tv'],
+              'television': ['tv'],
+              'televisión': ['tv'],
+              'coche': ['car'],
+              'planta': ['plant'],
+              'chimenea': ['fireplace'],
+              'sillón': ['armchair'],
+              'sillon': ['armchair'],
+              'encimera': ['kitchen_counter', 'counter'],
+              'mesita': ['nightstand'],
+              'barbacoa': ['bbq'],
+              'tumbona': ['sunbed'],
+              'piscina': ['pool'],
+              'billar': ['billiards'],
+              'futbolin': ['foosball'],
+              'futbolín': ['foosball'],
+              'ping pong': ['ping_pong'],
+              'alfombra': ['rug'],
+              'columpio': ['swing']
+            };
+
             project.floors.forEach(floor => {
-              if (floor.furniture.some(f => f.type.toLowerCase().includes(targetType) || f.category.toLowerCase().includes(targetType))) {
+              if (floor.furniture.some(f => {
+                const typeMatch = f.type.toLowerCase().includes(targetType) || targetType.includes(f.type.toLowerCase());
+                const catMatch = f.category.toLowerCase().includes(targetType) || targetType.includes(f.category.toLowerCase());
+                const nameMatch = f.name.toLowerCase().includes(targetType) || targetType.includes(f.name.toLowerCase());
+                
+                let mappedMatch = false;
+                for (const [es, enTypes] of Object.entries(esToEn)) {
+                  if (targetType.includes(es)) {
+                    if (enTypes.some(en => f.type.toLowerCase().includes(en))) {
+                      mappedMatch = true;
+                      break;
+                    }
+                  }
+                }
+
+                return typeMatch || catMatch || nameMatch || mappedMatch;
+              })) {
                 found = true;
               }
             });
@@ -124,12 +211,98 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
           case 'room_type': {
             const targetType = (req.targetValue as string).toLowerCase();
             let found = false;
+            const habitableTypes = ['dormitorio', 'cocina', 'salon', 'comedor', 'salon_comedor_cocina'];
+            
             project.floors.forEach(floor => {
-              if (floor.rooms.some(r => r.roomType?.toLowerCase() === targetType || r.name.toLowerCase().includes(targetType))) {
+              if (floor.rooms.some(r => {
+                const isMatch = r.roomType?.toLowerCase() === targetType || r.name.toLowerCase().includes(targetType);
+                if (!isMatch) return false;
+                
+                if (targetType === 'dormitorio' && calculateArea(r.points, project.gridSize * 2) < 6) {
+                  return false;
+                }
+                
+                if (habitableTypes.includes(targetType) && !hasWindow(r, floor)) {
+                  return false;
+                }
+                
+                return true;
+              })) {
                 found = true;
               }
             });
             isMet = found;
+            break;
+          }
+          case 'max_dimensions': {
+            const dims = (req.targetValue as string).toLowerCase().split('x');
+            if (dims.length === 2) {
+              const max1 = parseFloat(dims[0]);
+              const max2 = parseFloat(dims[1]);
+              
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              project.floors.forEach(floor => {
+                floor.rooms.forEach(room => {
+                  room.points.forEach(p => {
+                    if (p.x < minX) minX = p.x;
+                    if (p.y < minY) minY = p.y;
+                    if (p.x > maxX) maxX = p.x;
+                    if (p.y > maxY) maxY = p.y;
+                  });
+                });
+              });
+              
+              if (minX !== Infinity) {
+                const widthMeters = ((maxX - minX) / (project.gridSize * 2));
+                const heightMeters = ((maxY - minY) / (project.gridSize * 2));
+                
+                const fitsNormal = widthMeters <= max1 && heightMeters <= max2;
+                const fitsRotated = widthMeters <= max2 && heightMeters <= max1;
+                
+                isMet = fitsNormal || fitsRotated;
+              }
+            }
+            break;
+          }
+          case 'dwelling_type': {
+            // Difficult to validate automatically, assume true for now
+            isMet = true;
+            break;
+          }
+          case 'floors_count': {
+            const target = parseInt(req.targetValue as string, 10);
+            isMet = project.floors.length >= target;
+            break;
+          }
+          case 'double_bedroom_count': {
+            const target = parseInt(req.targetValue as string, 10);
+            let count = 0;
+            project.floors.forEach(floor => {
+              floor.rooms.forEach(room => {
+                if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
+                  if (calculateArea(room.points, project.gridSize * 2) >= 10 && hasWindow(room, floor)) {
+                    count++;
+                  }
+                }
+              });
+            });
+            isMet = count >= target;
+            break;
+          }
+          case 'single_bedroom_count': {
+            const target = parseInt(req.targetValue as string, 10);
+            let count = 0;
+            project.floors.forEach(floor => {
+              floor.rooms.forEach(room => {
+                if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
+                  const area = calculateArea(room.points, project.gridSize * 2);
+                  if (area >= 6 && area < 10 && hasWindow(room, floor)) {
+                    count++;
+                  }
+                }
+              });
+            });
+            isMet = count >= target;
             break;
           }
           default:
@@ -163,9 +336,26 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
             </div>
             <div>
               <h3 className="font-medium text-slate-800 mb-1">¿Listo para un desafío?</h3>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 mb-4">
                 Genera un desafío de diseño aleatorio usando IA y pon a prueba tus habilidades.
               </p>
+              
+              <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
+                {(['facil', 'medio', 'dificil'] as const).map(level => (
+                  <button
+                    key={level}
+                    onClick={() => setDifficulty(level)}
+                    className={cn(
+                      "flex-1 py-1.5 text-xs font-medium rounded-md capitalize transition-all",
+                      difficulty === level 
+                        ? "bg-white text-indigo-700 shadow-sm" 
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                    )}
+                  >
+                    {level === 'facil' ? 'Fácil' : level === 'medio' ? 'Medio' : 'Difícil'}
+                  </button>
+                ))}
+              </div>
             </div>
             <button
               onClick={generateChallenge}
@@ -219,18 +409,39 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
           <button
             onClick={validateChallenge}
             disabled={isValidating}
-            className="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mb-4"
           >
             {isValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {isValidating ? 'Validando...' : 'Validar Diseño'}
           </button>
-          <button
-            onClick={generateChallenge}
-            disabled={isGenerating}
-            className="w-full py-2 text-sm text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            Generar otro desafío
-          </button>
+          
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-xs text-slate-500 mb-2 text-center">¿Quieres intentar otro?</p>
+            <div className="flex bg-slate-100 p-1 rounded-lg mb-3">
+              {(['facil', 'medio', 'dificil'] as const).map(level => (
+                <button
+                  key={level}
+                  onClick={() => setDifficulty(level)}
+                  className={cn(
+                    "flex-1 py-1 text-xs font-medium rounded-md capitalize transition-all",
+                    difficulty === level 
+                      ? "bg-white text-indigo-700 shadow-sm" 
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                  )}
+                >
+                  {level === 'facil' ? 'Fácil' : level === 'medio' ? 'Medio' : 'Difícil'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={generateChallenge}
+              disabled={isGenerating}
+              className="w-full py-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors flex justify-center items-center gap-2"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {isGenerating ? 'Generando...' : 'Generar otro desafío'}
+            </button>
+          </div>
         </div>
       )}
     </div>
