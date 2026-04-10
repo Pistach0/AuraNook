@@ -10,6 +10,11 @@ Bienvenido a **AuraNook**, la herramienta definitiva para diseñar y visualizar 
 * **Multilenguaje:** Soporte completo en **Español** e **Inglés**.
 * **Unidades Configurables:** Elige entre sistema métrico (cm/m) e imperial (pulgadas).
 
+## 🏆 Sistema de Desafíos (AuraChallenge)
+¡Mantente motivado mientras aprendes! AuraNook ahora incluye un sistema de desafíos dinámicos impulsados por IA:
+* **Desafíos Personalizados:** La IA genera retos basados en tu nivel y progreso.
+> *Nota: Esta funcionalidad utiliza la API de Gemini para generar contenido único y adaptativo para cada usuario.*
+
 ## 🚀 Cómo empezar
 Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
 
@@ -20,4 +25,4 @@ Puedes usar la aplicación directamente en: https://aura-nook.vercel.app/
 * **Despliegue:** Vercel
 
 ---
-#AuraNook #AuraTeam #Architecture #AIDesign #React #WebDevelopment #internationalization #multi-unit-support #imperial-units
+#AuraNook #Architecture #AIDesign #React #WebDevelopment #internationalization #multi-unit-support #imperial-units
