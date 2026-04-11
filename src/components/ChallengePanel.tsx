@@ -198,81 +198,52 @@ Devuelve un JSON con el siguiente formato exacto:
     }
   };
 
-  const hasWindow = (room: Room, floor: Floor): boolean => {
-    const roomWalls = floor.walls.filter(wall => {
-      for (let i = 0; i < room.points.length; i++) {
-        const p1 = room.points[i];
-        const p2 = room.points[(i + 1) % room.points.length];
-        
-        const match1 = (Math.abs(wall.start.x - p1.x) < 1 && Math.abs(wall.start.y - p1.y) < 1) &&
-                       (Math.abs(wall.end.x - p2.x) < 1 && Math.abs(wall.end.y - p2.y) < 1);
-        const match2 = (Math.abs(wall.start.x - p2.x) < 1 && Math.abs(wall.start.y - p2.y) < 1) &&
-                       (Math.abs(wall.end.x - p1.x) < 1 && Math.abs(wall.end.y - p1.y) < 1);
-                       
-        if (match1 || match2) return true;
-      }
-      return false;
-    });
+  const isOpeningInRoom = (opening: any, room: Room, floor: Floor): boolean => {
+    const wall = floor.walls.find(w => w.id === opening.wallId);
+    if (!wall) return false;
+    
+    const ox = wall.start.x + (wall.end.x - wall.start.x) * opening.distance;
+    const oy = wall.start.y + (wall.end.y - wall.start.y) * opening.distance;
 
-    const roomWallIds = new Set(roomWalls.map(w => w.id));
-    return floor.openings.some(o => o.type === 'window' && roomWallIds.has(o.wallId));
+    for (let i = 0; i < room.points.length; i++) {
+      const p1 = room.points[i];
+      const p2 = room.points[(i + 1) % room.points.length];
+      
+      const d1 = Math.hypot(ox - p1.x, oy - p1.y);
+      const d2 = Math.hypot(p2.x - ox, p2.y - oy);
+      const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      
+      // If the sum of distances to the endpoints equals the segment length, the point is on the segment.
+      if (Math.abs(d1 + d2 - d) < 1.0) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const hasWindow = (room: Room, floor: Floor): boolean => {
+    return floor.openings.some(o => o.type === 'window' && isOpeningInRoom(o, room, floor));
   };
 
   const hasDoor = (room: Room, floor: Floor): boolean => {
-    const roomWalls = floor.walls.filter(wall => {
-      for (let i = 0; i < room.points.length; i++) {
-        const p1 = room.points[i];
-        const p2 = room.points[(i + 1) % room.points.length];
-        
-        const match1 = (Math.abs(wall.start.x - p1.x) < 1 && Math.abs(wall.start.y - p1.y) < 1) &&
-                       (Math.abs(wall.end.x - p2.x) < 1 && Math.abs(wall.end.y - p2.y) < 1);
-        const match2 = (Math.abs(wall.start.x - p2.x) < 1 && Math.abs(wall.start.y - p2.y) < 1) &&
-                       (Math.abs(wall.end.x - p1.x) < 1 && Math.abs(wall.end.y - p1.y) < 1);
-                       
-        if (match1 || match2) return true;
-      }
-      return false;
-    });
-
-    const roomWallIds = new Set(roomWalls.map(w => w.id));
-    return floor.openings.some(o => o.type === 'door' && roomWallIds.has(o.wallId));
+    return floor.openings.some(o => o.type === 'door' && isOpeningInRoom(o, room, floor));
   };
 
   const hasEntranceDoor = (project: Project): boolean => {
-    // An entrance door is a door on an exterior wall.
-    // Since we don't have a strict 'isExterior' flag reliably set for all walls,
-    // we can check if there's any door that belongs to a wall that is only part of ONE room.
-    // If a wall is part of two rooms, it's an interior wall.
-    
     let hasExteriorDoor = false;
     
     project.floors.forEach(floor => {
       floor.openings.forEach(o => {
         if (o.type === 'door') {
-          const wall = floor.walls.find(w => w.id === o.wallId);
-          if (wall) {
-            // Count how many rooms this wall belongs to
-            let roomCount = 0;
-            floor.rooms.forEach(room => {
-              for (let i = 0; i < room.points.length; i++) {
-                const p1 = room.points[i];
-                const p2 = room.points[(i + 1) % room.points.length];
-                
-                const match1 = (Math.abs(wall.start.x - p1.x) < 1 && Math.abs(wall.start.y - p1.y) < 1) &&
-                               (Math.abs(wall.end.x - p2.x) < 1 && Math.abs(wall.end.y - p2.y) < 1);
-                const match2 = (Math.abs(wall.start.x - p2.x) < 1 && Math.abs(wall.start.y - p2.y) < 1) &&
-                               (Math.abs(wall.end.x - p1.x) < 1 && Math.abs(wall.end.y - p1.y) < 1);
-                               
-                if (match1 || match2) {
-                  roomCount++;
-                  break;
-                }
-              }
-            });
-            
-            if (roomCount === 1) {
-              hasExteriorDoor = true;
+          let roomCount = 0;
+          floor.rooms.forEach(room => {
+            if (isOpeningInRoom(o, room, floor)) {
+              roomCount++;
             }
+          });
+          
+          if (roomCount === 1) {
+            hasExteriorDoor = true;
           }
         }
       });
