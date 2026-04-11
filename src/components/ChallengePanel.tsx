@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Trophy, Play, CheckCircle2, Circle, Loader2, Sparkles } from 'lucide-react';
+import { Trophy, Play, CheckCircle2, Circle, Loader2, Sparkles, Bookmark, BookmarkCheck, Star, Trash2 } from 'lucide-react';
 import { Challenge, Project, Floor, Room, Furniture, ChallengeRequirement } from '../types';
 import { cn, calculateArea, isPointInPolygon } from '../lib/utils';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -16,8 +16,115 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<'facil' | 'medio' | 'dificil'>('medio');
+  const [savedChallenges, setSavedChallenges] = useState<Challenge[]>([]);
+  const [activeTab, setActiveTab] = useState<'current' | 'saved'>('current');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('planify_saved_challenges');
+    if (saved) {
+      setSavedChallenges(JSON.parse(saved));
+    }
+  }, []);
+
+  const toggleSaveChallenge = () => {
+    if (!challenge) return;
+    
+    let updated: Challenge[];
+    if (challenge.isSaved) {
+      updated = savedChallenges.filter(c => c.id !== challenge.id);
+      setChallenge({ ...challenge, isSaved: false });
+    } else {
+      const challengeToSave = { ...challenge, isSaved: true };
+      updated = [...savedChallenges, challengeToSave];
+      setChallenge(challengeToSave);
+    }
+    
+    setSavedChallenges(updated);
+    localStorage.setItem('planify_saved_challenges', JSON.stringify(updated));
+  };
+
+  const loadSavedChallenge = (savedChallenge: Challenge) => {
+    setChallenge(savedChallenge);
+    setActiveTab('current');
+  };
+
+  const deleteSavedChallenge = (id: string) => {
+    const updated = savedChallenges.filter(c => c.id !== id);
+    setSavedChallenges(updated);
+    localStorage.setItem('planify_saved_challenges', JSON.stringify(updated));
+    if (challenge?.id === id) {
+      setChallenge({ ...challenge, isSaved: false });
+    }
+  };
+
+  const evaluateDesign = async () => {
+    if (!challenge) return;
+    setIsEvaluating(true);
+    setError(null);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const projectSummary = project.floors.map(f => {
+        return `Planta: ${f.name}
+Habitaciones:
+${f.rooms.map(r => `- ${r.name || r.roomType} (${calculateArea(r.points, project.gridSize * 2).toFixed(2)} m2)`).join('\n')}
+Muebles:
+${f.furniture.map(furn => `- ${furn.name} (${furn.type}) en ${f.rooms.find(r => isPointInPolygon({x: furn.x, y: furn.y}, r.points))?.name || 'fuera'}`).join('\n')}
+`;
+      }).join('\n\n');
+
+      const prompt = `Evalúa el siguiente diseño de interiores/arquitectura para el desafío "${challenge.title}".
+Descripción del desafío: ${challenge.description}
+
+Diseño del usuario:
+${projectSummary}
+
+Por favor, puntúa el diseño del 1 al 10 basándote en la distribución, el uso del espacio, la elección del mobiliario y la coherencia general.
+Devuelve un JSON con el siguiente formato exacto:
+{
+  "score": 8,
+  "feedback": "Comentario detallado sobre lo que está bien y lo que se podría mejorar."
+}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              score: { type: Type.NUMBER },
+              feedback: { type: Type.STRING }
+            },
+            required: ['score', 'feedback']
+          }
+        }
+      });
+
+      const jsonStr = response.text?.trim();
+      if (jsonStr) {
+        const result = JSON.parse(jsonStr);
+        const updatedChallenge = { ...challenge, score: result.score, feedback: result.feedback };
+        setChallenge(updatedChallenge);
+        
+        // Update saved version if it exists
+        if (updatedChallenge.isSaved) {
+          const updatedSaved = savedChallenges.map(c => c.id === updatedChallenge.id ? updatedChallenge : c);
+          setSavedChallenges(updatedSaved);
+          localStorage.setItem('planify_saved_challenges', JSON.stringify(updatedSaved));
+        }
+      }
+    } catch (error: any) {
+      console.error('Error evaluating design:', error);
+      setError('Error al evaluar el diseño con IA.');
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
 
   const generateChallenge = async () => {
     setIsGenerating(true);
@@ -430,15 +537,76 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
 
   return (
     <div className="h-full flex flex-col bg-white">
-      <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-amber-500" />
-          <h2 className="font-semibold text-slate-800">AuraChallenge</h2>
+      <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500" />
+            <h2 className="font-semibold text-slate-800">AuraChallenge</h2>
+          </div>
+        </div>
+        
+        <div className="flex bg-slate-200/50 p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('current')}
+            className={cn(
+              "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+              activeTab === 'current' 
+                ? "bg-white text-indigo-700 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Actual
+          </button>
+          <button
+            onClick={() => setActiveTab('saved')}
+            className={cn(
+              "flex-1 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1",
+              activeTab === 'saved' 
+                ? "bg-white text-indigo-700 shadow-sm" 
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Guardados
+            {savedChallenges.length > 0 && (
+              <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full text-[10px]">
+                {savedChallenges.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {!challenge ? (
+        {activeTab === 'saved' ? (
+          <div className="space-y-3">
+            {savedChallenges.length === 0 ? (
+              <div className="text-center text-slate-500 mt-8 text-sm">
+                No tienes desafíos guardados.
+              </div>
+            ) : (
+              savedChallenges.map(saved => (
+                <div key={saved.id} className="p-3 border border-slate-200 rounded-lg bg-slate-50 hover:border-indigo-300 transition-colors cursor-pointer" onClick={() => loadSavedChallenge(saved)}>
+                  <div className="flex items-start justify-between mb-1">
+                    <h4 className="font-medium text-slate-800 text-sm">{saved.title}</h4>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); deleteSavedChallenge(saved.id); }}
+                      className="text-slate-400 hover:text-red-500 p-1"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 line-clamp-2 mb-2">{saved.description}</p>
+                  {saved.score && (
+                    <div className="flex items-center gap-1 text-xs font-medium text-amber-600">
+                      <Star className="w-3 h-3 fill-amber-500" />
+                      Puntuación: {saved.score}/10
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : !challenge ? (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
             <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-amber-500" />
@@ -483,7 +651,21 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
         ) : (
           <div className="space-y-6">
             <div>
-              <h3 className="font-bold text-lg text-slate-800 mb-2">{challenge.title}</h3>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className="font-bold text-lg text-slate-800">{challenge.title}</h3>
+                <button
+                  onClick={toggleSaveChallenge}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-colors shrink-0",
+                    challenge.isSaved 
+                      ? "bg-indigo-100 text-indigo-600 hover:bg-indigo-200" 
+                      : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                  )}
+                  title={challenge.isSaved ? "Desafío guardado" : "Guardar desafío"}
+                >
+                  {challenge.isSaved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
+                </button>
+              </div>
               <p className="text-sm text-slate-600 leading-relaxed">{challenge.description}</p>
             </div>
 
@@ -513,16 +695,36 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
         )}
       </div>
 
-      {challenge && (
+      {challenge && activeTab === 'current' && (
         <div className="p-4 border-t border-slate-100 bg-white space-y-3">
-          <button
-            onClick={validateChallenge}
-            disabled={isValidating}
-            className="w-full py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mb-4"
-          >
-            {isValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            {isValidating ? 'Validando...' : 'Validar Diseño'}
-          </button>
+          {challenge.score ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+                <span className="font-bold text-amber-800">Puntuación IA: {challenge.score}/10</span>
+              </div>
+              <p className="text-sm text-amber-700 leading-relaxed">{challenge.feedback}</p>
+            </div>
+          ) : (
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={validateChallenge}
+                disabled={isValidating || isEvaluating}
+                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {isValidating ? 'Validando...' : 'Validar'}
+              </button>
+              <button
+                onClick={evaluateDesign}
+                disabled={isValidating || isEvaluating}
+                className="flex-1 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isEvaluating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+                {isEvaluating ? 'Evaluando...' : 'Evaluar con IA'}
+              </button>
+            </div>
+          )}
           
           <div className="pt-4 border-t border-slate-100">
             <p className="text-xs text-slate-500 mb-2 text-center">¿Quieres intentar otro?</p>

@@ -164,4 +164,7 @@ export interface Challenge {
   title: string;
   description: string;
   requirements: ChallengeRequirement[];
+  isSaved?: boolean;
+  score?: number;
+  feedback?: string;
 }
