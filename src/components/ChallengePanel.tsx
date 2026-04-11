@@ -293,11 +293,9 @@ Devuelve un JSON con el siguiente formato exacto:
       case 'salon':
         return furnitureInRoom.some(f => f.type === 'sofa' || f.type === 'sofa_2' || f.type === 'chaiselongue');
       case 'dormitorio_doble':
-        return (furnitureInRoom.some(f => f.type === 'bed_double') || furnitureInRoom.filter(f => f.type === 'bed_single').length >= 2) &&
-               furnitureInRoom.some(f => f.type === 'wardrobe');
+        return furnitureInRoom.some(f => f.type === 'bed_double') || furnitureInRoom.filter(f => f.type === 'bed_single').length >= 2;
       case 'dormitorio_individual':
-        return furnitureInRoom.some(f => f.type === 'bed_single' || f.type === 'bed_double') &&
-               furnitureInRoom.some(f => f.type === 'wardrobe');
+        return furnitureInRoom.some(f => f.type === 'bed_single' || f.type === 'bed_double');
       case 'baño':
         return furnitureInRoom.some(f => f.type === 'toilet') &&
                furnitureInRoom.some(f => f.type === 'bathroom_sink');
@@ -419,14 +417,22 @@ Devuelve un JSON con el siguiente formato exacto:
             
             project.floors.forEach(floor => {
               if (floor.rooms.some(r => {
-                const isMatch = r.roomType?.toLowerCase() === targetType || r.name.toLowerCase().includes(targetType);
+                const area = calculateArea(r.points, project.gridSize * 2);
+                let isMatch = r.roomType?.toLowerCase() === targetType || r.name.toLowerCase().includes(targetType);
+                
+                if (targetType === 'dormitorio_doble' && (r.roomType === 'dormitorio' || r.name.toLowerCase().includes('dormitorio')) && area >= 10) {
+                  isMatch = true;
+                } else if (targetType === 'dormitorio_individual' && (r.roomType === 'dormitorio' || r.name.toLowerCase().includes('dormitorio')) && area < 10) {
+                  isMatch = true;
+                }
+                
                 if (!isMatch) return false;
                 
-                if (targetType === 'dormitorio' && calculateArea(r.points, project.gridSize * 2) < 6) {
+                if ((targetType === 'dormitorio' || targetType === 'dormitorio_doble' || targetType === 'dormitorio_individual') && area < 6) {
                   return false;
                 }
                 
-                if (habitableTypes.includes(targetType) && !hasWindow(r, floor)) {
+                if ((habitableTypes.includes(targetType) || targetType.includes('dormitorio')) && !hasWindow(r, floor)) {
                   return false;
                 }
 
@@ -534,6 +540,8 @@ Devuelve un JSON con el siguiente formato exacto:
   };
 
   if (!isOpen) return null;
+
+  const allRequirementsMet = challenge?.requirements.every(req => req.isMet) ?? false;
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -717,8 +725,9 @@ Devuelve un JSON con el siguiente formato exacto:
               </button>
               <button
                 onClick={evaluateDesign}
-                disabled={isValidating || isEvaluating}
+                disabled={isValidating || isEvaluating || !allRequirementsMet}
                 className="flex-1 py-2.5 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                title={!allRequirementsMet ? "Debes cumplir todos los requisitos primero" : "Evaluar diseño con IA"}
               >
                 {isEvaluating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
                 {isEvaluating ? 'Evaluando...' : 'Evaluar con IA'}
