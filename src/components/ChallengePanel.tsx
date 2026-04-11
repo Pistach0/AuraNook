@@ -209,12 +209,33 @@ Devuelve un JSON con el siguiente formato exacto:
       const p1 = room.points[i];
       const p2 = room.points[(i + 1) % room.points.length];
       
-      const d1 = Math.hypot(ox - p1.x, oy - p1.y);
-      const d2 = Math.hypot(p2.x - ox, p2.y - oy);
-      const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const A = ox - p1.x;
+      const B = oy - p1.y;
+      const C = p2.x - p1.x;
+      const D = p2.y - p1.y;
+
+      const dot = A * C + B * D;
+      const len_sq = C * C + D * D;
+      let param = -1;
+      if (len_sq !== 0) param = dot / len_sq;
+
+      let xx, yy;
+      if (param < 0) {
+        xx = p1.x;
+        yy = p1.y;
+      } else if (param > 1) {
+        xx = p2.x;
+        yy = p2.y;
+      } else {
+        xx = p1.x + param * C;
+        yy = p1.y + param * D;
+      }
+
+      const dx = ox - xx;
+      const dy = oy - yy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // If the sum of distances to the endpoints equals the segment length, the point is on the segment.
-      if (Math.abs(d1 + d2 - d) < 1.0) {
+      if (dist < 5) {
         return true;
       }
     }
@@ -313,7 +334,8 @@ Devuelve un JSON con el siguiente formato exacto:
                 }
               });
             });
-            isMet = totalArea > 0 && totalArea <= target && hasEntranceDoor(project);
+            // Use a small epsilon (0.1) for floating point comparisons
+            isMet = totalArea > 0 && totalArea <= (target + 0.1) && hasEntranceDoor(project);
             break;
           }
           case 'specific_furniture': {
