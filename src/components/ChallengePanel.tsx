@@ -235,7 +235,10 @@ Devuelve un JSON con el siguiente formato exacto:
       const dy = oy - yy;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      if (dist < 5) {
+      // Wall thickness can be up to 30cm (15px).
+      // Using 50px tolerance to be absolutely sure we catch openings even if the room polygon
+      // is slightly offset from the wall centerline due to complex intersections.
+      if (dist < 50) {
         return true;
       }
     }
@@ -335,7 +338,7 @@ Devuelve un JSON con el siguiente formato exacto:
               });
             });
             // Use a small epsilon (0.1) for floating point comparisons
-            isMet = totalArea > 0 && totalArea <= (target + 0.1) && hasEntranceDoor(project);
+            isMet = totalArea > 0 && totalArea <= (target + 0.1);
             break;
           }
           case 'specific_furniture': {
@@ -404,14 +407,17 @@ Devuelve un JSON con el siguiente formato exacto:
             break;
           }
           case 'room_type': {
-            const targetType = (req.targetValue as string).toLowerCase();
+            let targetType = (req.targetValue as string).toLowerCase();
+            // Normalize spaces to underscores for consistent matching
+            targetType = targetType.replace(' ', '_');
+            
             let found = false;
-            const habitableTypes = ['dormitorio', 'cocina', 'salon', 'comedor', 'salon_comedor_cocina'];
+            const habitableTypes = ['dormitorio', 'cocina', 'salon', 'comedor', 'salon_comedor_cocina', 'dormitorio_doble', 'dormitorio_individual'];
             
             project.floors.forEach(floor => {
               if (floor.rooms.some(r => {
                 const area = calculateArea(r.points, project.gridSize * 2);
-                let isMatch = r.roomType?.toLowerCase() === targetType || r.name.toLowerCase().includes(targetType);
+                let isMatch = r.roomType?.toLowerCase() === targetType || r.name.toLowerCase().replace(' ', '_').includes(targetType);
                 
                 if (targetType === 'dormitorio_doble' && (r.roomType === 'dormitorio' || r.name.toLowerCase().includes('dormitorio')) && area >= 10) {
                   isMatch = true;
