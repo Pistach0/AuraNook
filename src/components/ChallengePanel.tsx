@@ -430,14 +430,6 @@ Devuelve un JSON con el siguiente formato exacto:
                 if ((targetType === 'dormitorio' || targetType === 'dormitorio_doble' || targetType === 'dormitorio_individual') && area < 6) {
                   return false;
                 }
-                
-                if ((habitableTypes.includes(targetType) || targetType.includes('dormitorio')) && !hasWindow(r, floor)) {
-                  return false;
-                }
-
-                if (targetType !== 'patio' && targetType !== 'terraza' && targetType !== 'porche' && !hasDoor(r, floor)) {
-                  return false;
-                }
 
                 if (!hasBasicFurniture(r, floor, targetType)) {
                   return false;
@@ -501,7 +493,7 @@ Devuelve un JSON con el siguiente formato exacto:
             project.floors.forEach(floor => {
               floor.rooms.forEach(room => {
                 if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
-                  if (calculateArea(room.points, project.gridSize * 2) >= 10 && hasWindow(room, floor) && hasDoor(room, floor) && hasBasicFurniture(room, floor, 'dormitorio_doble')) {
+                  if (calculateArea(room.points, project.gridSize * 2) >= 10 && hasBasicFurniture(room, floor, 'dormitorio_doble')) {
                     count++;
                   }
                 }
@@ -517,7 +509,7 @@ Devuelve un JSON con el siguiente formato exacto:
               floor.rooms.forEach(room => {
                 if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
                   const area = calculateArea(room.points, project.gridSize * 2);
-                  if (area >= 6 && area < 10 && hasWindow(room, floor) && hasDoor(room, floor) && hasBasicFurniture(room, floor, 'dormitorio_individual')) {
+                  if (area >= 6 && area < 10 && hasBasicFurniture(room, floor, 'dormitorio_individual')) {
                     count++;
                   }
                 }
