@@ -332,7 +332,7 @@ Devuelve un JSON con el siguiente formato exacto:
             let totalArea = 0;
             project.floors.forEach(floor => {
               floor.rooms.forEach(room => {
-                if (room.roomType !== 'patio' && !room.name.toLowerCase().includes('patio')) {
+                if (room.roomType !== 'patio' && !room.name.toLowerCase().includes('patio') && room.roomType !== 'terraza' && !room.name.toLowerCase().includes('terraza')) {
                   totalArea += calculateArea(room.points, project.gridSize * 2);
                 }
               });

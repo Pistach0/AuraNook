@@ -269,7 +269,7 @@ export default function App() {
 
   const totalProjectArea = project.floors.reduce((total, floor) => {
     return total + floor.rooms.reduce((acc, room) => {
-      if (room.roomType === 'patio' || room.name.toLowerCase().includes('patio')) {
+      if (room.roomType === 'patio' || room.name.toLowerCase().includes('patio') || room.roomType === 'terraza' || room.name.toLowerCase().includes('terraza')) {
         return acc;
       }
       return acc + calculateArea(room.points, project.gridSize * 2);
