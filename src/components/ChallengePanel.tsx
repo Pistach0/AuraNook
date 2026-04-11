@@ -134,14 +134,14 @@ Devuelve un JSON con el siguiente formato exacto:
       
       let difficultyPrompt = '';
       if (difficulty === 'facil') {
-        difficultyPrompt = 'Nivel FÁCIL: Pocos requisitos (2 o 3), restricciones muy holgadas, espacios grandes permitidos. Ideal para principiantes.';
+        difficultyPrompt = 'Nivel FÁCIL: Pocos requisitos (3 o 4), restricciones muy holgadas, espacios grandes permitidos. Ideal para principiantes. PROHIBIDO pedir patios interiores.';
       } else if (difficulty === 'medio') {
-        difficultyPrompt = 'Nivel MEDIO: Requisitos estándar (3 o 4), restricciones normales. Un reto equilibrado.';
+        difficultyPrompt = 'Nivel MEDIO: Requisitos estándar (4 o 5), restricciones normales. Un reto equilibrado. PROHIBIDO pedir patios interiores.';
       } else {
-        difficultyPrompt = 'Nivel DIFÍCIL: Muchos requisitos (4 a 6), restricciones muy estrictas (ej. áreas máximas muy pequeñas, muchos muebles específicos requeridos). Un verdadero rompecabezas arquitectónico.';
+        difficultyPrompt = 'Nivel DIFÍCIL: Muchos requisitos (5 a 7), restricciones muy estrictas (ej. áreas máximas muy pequeñas, muchos muebles específicos requeridos). Un verdadero rompecabezas arquitectónico. Aquí SÍ puedes (y es recomendable) pedir un patio interior.';
       }
       
-      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE al menos estos dos requisitos:\n1. Un área máxima (`max_area`).\n2. Un requisito de dormitorios (usando `room_type` con valor "dormitorio", o `double_bedroom_count`, o `single_bedroom_count`) O un requisito de camas (usando `specific_furniture` con valor "cama").\n\nAdemás, añade VARIEDAD a los retos. No hagas siempre el mismo tipo de casa. Pide cosas como: "un patio interior de al menos X m2", "un garaje para 2 coches", "una casa de 2 plantas", "una vivienda entre medianeras de 6x15m", "un loft sin paredes interiores", etc.';
+      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE estos requisitos obligatorios:\n1. Un área máxima (`max_area`).\n2. Dimensiones máximas de la parcela (ancho x largo) usando `max_dimensions` (ej. "8x15"). En la descripción del requisito debe quedar claro el ancho y el largo.\n3. Especificar claramente el número de dormitorios y su tipo (dobles o individuales) usando `double_bedroom_count` y/o `single_bedroom_count`. En la descripción del requisito debe quedar claro cuántos son dobles y cuántos individuales. PROHIBIDO usar `room_type` con valor "dormitorio" para contar habitaciones, usa siempre los contadores específicos.\n\nAdemás, añade VARIEDAD a los retos. No hagas siempre el mismo tipo de casa. Pide cosas como: "un garaje para 2 coches", "una casa de 2 plantas", "una vivienda entre medianeras", "un loft sin paredes interiores", etc.';
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
