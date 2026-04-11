@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Trophy, Play, CheckCircle2, Circle, Loader2, Sparkles } from 'lucide-react';
 import { Challenge, Project, Floor, Room, Furniture, ChallengeRequirement } from '../types';
-import { cn, calculateArea } from '../lib/utils';
+import { cn, calculateArea, isPointInPolygon } from '../lib/utils';
 import { GoogleGenAI, Type } from '@google/genai';
 
 interface ChallengePanelProps {
@@ -34,11 +34,11 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
         difficultyPrompt = 'Nivel DIFÍCIL: Muchos requisitos (4 a 6), restricciones muy estrictas (ej. áreas máximas muy pequeñas, muchos muebles específicos requeridos). Un verdadero rompecabezas arquitectónico.';
       }
       
-      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE al menos estos dos requisitos:\n1. Un área máxima (`max_area`).\n2. Un requisito de dormitorios (usando `room_type` con valor "dormitorio", o `double_bedroom_count`, o `single_bedroom_count`) O un requisito de camas (usando `specific_furniture` con valor "cama").';
+      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE al menos estos dos requisitos:\n1. Un área máxima (`max_area`).\n2. Un requisito de dormitorios (usando `room_type` con valor "dormitorio", o `double_bedroom_count`, o `single_bedroom_count`) O un requisito de camas (usando `specific_furniture` con valor "cama").\n\nAdemás, añade VARIEDAD a los retos. No hagas siempre el mismo tipo de casa. Pide cosas como: "un patio interior de al menos X m2", "un garaje para 2 coches", "una casa de 2 plantas", "una vivienda entre medianeras de 6x15m", "un loft sin paredes interiores", etc.';
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Genera un desafío de diseño de interiores o arquitectura para una aplicación de diseño de planos. Debe ser creativo y divertido. \n\n${difficultyPrompt}\n\n${mandatoryRequirements}\n\nUsa los siguientes tipos de habitación permitidos si pides un tipo específico: dormitorio, baño, cocina, salon, comedor, salon_comedor_cocina, despacho, porche, patio, terraza, despensa, bodega, entrada, pasillo, ascensor, garaje, lavadero, vestidor, gimnasio, sala_juegos.\n\nAdemás de limitación por m2, puedes indicar la medida máxima de ancho x largo de la zona edificable (ej. 10x20), indicar si es una vivienda independiente, entre medianeras o pareada (para el tema de la luz natural), y jugar con varias plantas.\n\nDistingue entre dormitorio doble (mín. 10m2) y dormitorio individual (entre 6 y 10m2).`,
+        contents: `Genera un desafío de diseño de interiores o arquitectura para una aplicación de diseño de planos. Debe ser creativo y divertido. \n\n${difficultyPrompt}\n\n${mandatoryRequirements}\n\nUsa los siguientes tipos de habitación permitidos si pides un tipo específico: dormitorio, baño, cocina, salon, comedor, salon_comedor_cocina, despacho, porche, patio, terraza, despensa, bodega, entrada, pasillo, ascensor, garaje, lavadero, vestidor, gimnasio, sala_juegos.\n\nAdemás de limitación por m2, puedes indicar la medida máxima de ancho x largo de la zona edificable (ej. 10x20), indicar si es una vivienda independiente, entre medianeras o pareada (para el tema de la luz natural), y jugar con varias plantas.\n\nDistingue entre dormitorio doble (mín. 10m2) y dormitorio individual (entre 6 y 10m2).\n\nTen en cuenta que el sistema validará automáticamente que:\n- Todas las habitaciones tengan puerta.\n- Haya una puerta de entrada a la vivienda.\n- Las habitaciones habitables tengan ventana.\n- Si hay varias plantas, haya escaleras.\n- Las habitaciones tengan su mobiliario básico (ej. cocina con encimera, nevera, fregadero y horno; baño con inodoro y lavabo; etc.).\nPor lo tanto, puedes mencionarlo en la descripción del reto para que el usuario lo sepa.`,
         config: {
           systemInstruction: 'Eres un experto en diseño de interiores y arquitectura. Crea desafíos para usuarios de una app de diseño de planos.',
           responseMimeType: 'application/json',
@@ -111,6 +111,101 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
     return floor.openings.some(o => o.type === 'window' && roomWallIds.has(o.wallId));
   };
 
+  const hasDoor = (room: Room, floor: Floor): boolean => {
+    const roomWalls = floor.walls.filter(wall => {
+      for (let i = 0; i < room.points.length; i++) {
+        const p1 = room.points[i];
+        const p2 = room.points[(i + 1) % room.points.length];
+        
+        const match1 = (Math.abs(wall.start.x - p1.x) < 1 && Math.abs(wall.start.y - p1.y) < 1) &&
+                       (Math.abs(wall.end.x - p2.x) < 1 && Math.abs(wall.end.y - p2.y) < 1);
+        const match2 = (Math.abs(wall.start.x - p2.x) < 1 && Math.abs(wall.start.y - p2.y) < 1) &&
+                       (Math.abs(wall.end.x - p1.x) < 1 && Math.abs(wall.end.y - p1.y) < 1);
+                       
+        if (match1 || match2) return true;
+      }
+      return false;
+    });
+
+    const roomWallIds = new Set(roomWalls.map(w => w.id));
+    return floor.openings.some(o => o.type === 'door' && roomWallIds.has(o.wallId));
+  };
+
+  const hasEntranceDoor = (project: Project): boolean => {
+    // An entrance door is a door on an exterior wall.
+    // Since we don't have a strict 'isExterior' flag reliably set for all walls,
+    // we can check if there's any door that belongs to a wall that is only part of ONE room.
+    // If a wall is part of two rooms, it's an interior wall.
+    
+    let hasExteriorDoor = false;
+    
+    project.floors.forEach(floor => {
+      floor.openings.forEach(o => {
+        if (o.type === 'door') {
+          const wall = floor.walls.find(w => w.id === o.wallId);
+          if (wall) {
+            // Count how many rooms this wall belongs to
+            let roomCount = 0;
+            floor.rooms.forEach(room => {
+              for (let i = 0; i < room.points.length; i++) {
+                const p1 = room.points[i];
+                const p2 = room.points[(i + 1) % room.points.length];
+                
+                const match1 = (Math.abs(wall.start.x - p1.x) < 1 && Math.abs(wall.start.y - p1.y) < 1) &&
+                               (Math.abs(wall.end.x - p2.x) < 1 && Math.abs(wall.end.y - p2.y) < 1);
+                const match2 = (Math.abs(wall.start.x - p2.x) < 1 && Math.abs(wall.start.y - p2.y) < 1) &&
+                               (Math.abs(wall.end.x - p1.x) < 1 && Math.abs(wall.end.y - p1.y) < 1);
+                               
+                if (match1 || match2) {
+                  roomCount++;
+                  break;
+                }
+              }
+            });
+            
+            if (roomCount === 1) {
+              hasExteriorDoor = true;
+            }
+          }
+        }
+      });
+    });
+    
+    return hasExteriorDoor;
+  };
+
+  const hasBasicFurniture = (room: Room, floor: Floor, roomType: string): boolean => {
+    const furnitureInRoom = floor.furniture.filter(f => isPointInPolygon({ x: f.x, y: f.y }, room.points));
+    
+    switch (roomType) {
+      case 'cocina':
+        return furnitureInRoom.some(f => f.type === 'kitchen_counter') &&
+               furnitureInRoom.some(f => f.type === 'fridge') &&
+               furnitureInRoom.some(f => f.type === 'sink') &&
+               furnitureInRoom.some(f => f.type === 'stove');
+      case 'salon':
+        return furnitureInRoom.some(f => f.type === 'sofa' || f.type === 'sofa_2' || f.type === 'chaiselongue');
+      case 'dormitorio_doble':
+        return (furnitureInRoom.some(f => f.type === 'bed_double') || furnitureInRoom.filter(f => f.type === 'bed_single').length >= 2) &&
+               furnitureInRoom.some(f => f.type === 'wardrobe');
+      case 'dormitorio_individual':
+        return furnitureInRoom.some(f => f.type === 'bed_single' || f.type === 'bed_double') &&
+               furnitureInRoom.some(f => f.type === 'wardrobe');
+      case 'baño':
+        return furnitureInRoom.some(f => f.type === 'toilet') &&
+               furnitureInRoom.some(f => f.type === 'bathroom_sink');
+      case 'lavadero':
+        return furnitureInRoom.some(f => f.type === 'washing_machine');
+      case 'garaje':
+        return furnitureInRoom.some(f => f.type === 'car');
+      case 'despacho':
+        return furnitureInRoom.some(f => f.type === 'desk') &&
+               furnitureInRoom.some(f => f.type === 'office_chair');
+      default:
+        return true;
+    }
+  };
+
   const validateChallenge = () => {
     if (!challenge) return;
     setIsValidating(true);
@@ -137,10 +232,12 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
             let totalArea = 0;
             project.floors.forEach(floor => {
               floor.rooms.forEach(room => {
-                totalArea += calculateArea(room.points, project.gridSize * 2);
+                if (room.roomType !== 'patio' && !room.name.toLowerCase().includes('patio')) {
+                  totalArea += calculateArea(room.points, project.gridSize * 2);
+                }
               });
             });
-            isMet = totalArea > 0 && totalArea <= target;
+            isMet = totalArea > 0 && totalArea <= target && hasEntranceDoor(project);
             break;
           }
           case 'specific_furniture': {
@@ -225,6 +322,14 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
                 if (habitableTypes.includes(targetType) && !hasWindow(r, floor)) {
                   return false;
                 }
+
+                if (targetType !== 'patio' && targetType !== 'terraza' && targetType !== 'porche' && !hasDoor(r, floor)) {
+                  return false;
+                }
+
+                if (!hasBasicFurniture(r, floor, targetType)) {
+                  return false;
+                }
                 
                 return true;
               })) {
@@ -271,7 +376,11 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
           }
           case 'floors_count': {
             const target = parseInt(req.targetValue as string, 10);
-            isMet = project.floors.length >= target;
+            let hasStairs = true;
+            if (target > 1) {
+              hasStairs = project.floors.some(f => f.stairs.length > 0);
+            }
+            isMet = project.floors.length >= target && hasStairs;
             break;
           }
           case 'double_bedroom_count': {
@@ -280,7 +389,7 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
             project.floors.forEach(floor => {
               floor.rooms.forEach(room => {
                 if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
-                  if (calculateArea(room.points, project.gridSize * 2) >= 10 && hasWindow(room, floor)) {
+                  if (calculateArea(room.points, project.gridSize * 2) >= 10 && hasWindow(room, floor) && hasDoor(room, floor) && hasBasicFurniture(room, floor, 'dormitorio_doble')) {
                     count++;
                   }
                 }
@@ -296,7 +405,7 @@ export function ChallengePanel({ project, currentFloor, isOpen, onClose }: Chall
               floor.rooms.forEach(room => {
                 if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
                   const area = calculateArea(room.points, project.gridSize * 2);
-                  if (area >= 6 && area < 10 && hasWindow(room, floor)) {
+                  if (area >= 6 && area < 10 && hasWindow(room, floor) && hasDoor(room, floor) && hasBasicFurniture(room, floor, 'dormitorio_individual')) {
                     count++;
                   }
                 }

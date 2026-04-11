@@ -153,7 +153,7 @@ export interface Project {
 
 export interface ChallengeRequirement {
   id: string;
-  type: 'room_count' | 'furniture_count' | 'max_area' | 'specific_furniture' | 'room_type';
+  type: 'room_count' | 'furniture_count' | 'max_area' | 'specific_furniture' | 'room_type' | 'max_dimensions' | 'dwelling_type' | 'floors_count' | 'double_bedroom_count' | 'single_bedroom_count';
   targetValue: number | string;
   description: string;
   isMet?: boolean;

@@ -269,6 +269,9 @@ export default function App() {
 
   const totalProjectArea = project.floors.reduce((total, floor) => {
     return total + floor.rooms.reduce((acc, room) => {
+      if (room.roomType === 'patio' || room.name.toLowerCase().includes('patio')) {
+        return acc;
+      }
       return acc + calculateArea(room.points, project.gridSize * 2);
     }, 0);
   }, 0);
@@ -696,40 +699,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-            <div className="hidden sm:flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
-              <button 
-                onClick={() => setProject(p => ({ ...p, zoom: Math.max(0.2, p.zoom - 0.1) }))}
-                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title={t('app.zoomOut')}
-              >
-                <ZoomOut size={16} />
-              </button>
-              <span className="text-[10px] font-bold w-8 text-center">{Math.round(project.zoom * 100)}%</span>
-              <button 
-                onClick={() => setProject(p => ({ ...p, zoom: Math.min(3, p.zoom + 0.1) }))}
-                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title={t('app.zoomIn')}
-              >
-                <ZoomIn size={16} />
-              </button>
-              <div className="w-px h-4 bg-[#141414]/10 mx-1" />
-              <button 
-                onClick={handleZoomTotal}
-                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title={t('app.zoomFit')}
-              >
-                <Maximize2 size={16} />
-              </button>
-              <div className="w-px h-4 bg-[#141414]/10 mx-1" />
-              <button 
-                onClick={handleToggleFullscreen}
-                className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors"
-                title={isFullscreen ? t('app.exitFullscreen') : t('app.fullscreen')}
-              >
-                {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-              </button>
-            </div>
-
             <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
               <button 
                 onClick={() => setShowClearConfirm(true)}
