@@ -23,6 +23,7 @@ import { Canvas } from './components/Canvas';
 import { PrintModal } from './components/PrintModal';
 import { Logo } from './components/Logo';
 import { ChallengePanel } from './components/ChallengePanel';
+import { EvaluateDesignModal } from './components/EvaluateDesignModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Grid3X3, 
@@ -52,6 +53,7 @@ import {
   Globe,
   Lightbulb,
   Trophy,
+  Sparkles,
 } from 'lucide-react';
 import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
@@ -112,6 +114,7 @@ export default function App() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState<'properties' | 'challenge'>('properties');
   const [isChallengeOpen, setIsChallengeOpen] = useState(false);
+  const [isEvaluateModalOpen, setIsEvaluateModalOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [tempName, setTempName] = useState(project.name);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -914,6 +917,15 @@ export default function App() {
               <span className="hidden sm:inline">AuraChallenge</span>
             </button>
 
+            <button 
+              onClick={() => setIsEvaluateModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-colors text-xs font-bold shadow-sm bg-indigo-500 text-white hover:bg-indigo-600"
+              title="Evaluar Diseño con IA"
+            >
+              <Sparkles size={14} />
+              <span className="hidden sm:inline">Evaluar con IA</span>
+            </button>
+
             <div className="h-4 w-px bg-[#141414]/20 mx-1" />
 
             <button 
@@ -998,6 +1010,12 @@ export default function App() {
           onClose={() => setIsPrintModalOpen(false)}
           onPrint={handleExportPDF}
           previewData={previewData}
+        />
+
+        <EvaluateDesignModal
+          project={project}
+          isOpen={isEvaluateModalOpen}
+          onClose={() => setIsEvaluateModalOpen(false)}
         />
 
         {/* Bottom Status Bar */}
