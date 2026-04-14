@@ -857,13 +857,23 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             const offset = s.attachedWallOffset || 0;
             const side = s.attachedWallSide || 1;
             const thickness = cmToPx(wall.thickness);
-            const sHeight = cmToPx(s.length || 200);
+            const sWidth = cmToPx(s.width || 100);
             
-            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + sHeight / 2);
-            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + sHeight / 2);
+            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + sWidth / 2);
+            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + sWidth / 2);
             
-            let rotation = getAngle(wall.start, wall.end);
-            if (side === -1) rotation += 180;
+            const angle1 = getAngle(wall.start, wall.end) + 90 + (side === -1 ? 180 : 0);
+            const angle2 = angle1 + 180;
+            
+            const normalize = (a: number) => ((a % 360) + 360) % 360;
+            const currentRot = normalize(s.rotation || 0);
+            const diff1 = Math.abs(normalize(angle1) - currentRot);
+            const diff2 = Math.abs(normalize(angle2) - currentRot);
+            
+            const minDiff1 = Math.min(diff1, 360 - diff1);
+            const minDiff2 = Math.min(diff2, 360 - diff2);
+            
+            const rotation = minDiff1 < minDiff2 ? angle1 : angle2;
 
             return { ...s, x: newX, y: newY, rotation };
           }
@@ -940,13 +950,23 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             const offset = s.attachedWallOffset || 0;
             const side = s.attachedWallSide || 1;
             const thickness = cmToPx(wall.thickness);
-            const sHeight = cmToPx(s.length || 200);
+            const sWidth = cmToPx(s.width || 100);
             
-            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + sHeight / 2);
-            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + sHeight / 2);
+            const newX = wall.start.x + wallDx * offset + nx * side * (thickness / 2 + sWidth / 2);
+            const newY = wall.start.y + wallDy * offset + ny * side * (thickness / 2 + sWidth / 2);
             
-            let rotation = getAngle(wall.start, wall.end);
-            if (side === -1) rotation += 180;
+            const angle1 = getAngle(wall.start, wall.end) + 90 + (side === -1 ? 180 : 0);
+            const angle2 = angle1 + 180;
+            
+            const normalize = (a: number) => ((a % 360) + 360) % 360;
+            const currentRot = normalize(s.rotation || 0);
+            const diff1 = Math.abs(normalize(angle1) - currentRot);
+            const diff2 = Math.abs(normalize(angle2) - currentRot);
+            
+            const minDiff1 = Math.min(diff1, 360 - diff1);
+            const minDiff2 = Math.min(diff2, 360 - diff2);
+            
+            const rotation = minDiff1 < minDiff2 ? angle1 : angle2;
 
             return { ...s, x: newX, y: newY, rotation };
           }
@@ -1076,41 +1096,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       nearestWallOffset = undefined;
       rotation = s.rotation;
     }
-
-    // Pass 2: Push out of ANY overlapping walls (e.g. in corners)
-    floor.walls.forEach(wall => {
-      if (wall.id === nearestWallId) return; // Don't push out of the wall we are snapped to
-      
-      const wallLen = getDistance(wall.start, wall.end);
-      if (wallLen === 0) return;
-      
-      const wdx = wall.end.x - wall.start.x;
-      const wdy = wall.end.y - wall.start.y;
-      const tx = wdx / wallLen;
-      const ty = wdy / wallLen;
-      const nx = -ty;
-      const ny = tx;
-      
-      const distToLine = (newX - wall.start.x) * nx + (newY - wall.start.y) * ny;
-      const t = (newX - wall.start.x) * tx + (newY - wall.start.y) * ty;
-      
-      const wallAngle = getAngle(wall.start, wall.end);
-      const radDiff = (rotation - wallAngle) * Math.PI / 180;
-      
-      const sizeAlongNormal = Math.abs(sWidth * Math.sin(radDiff)) + Math.abs(sHeight * Math.cos(radDiff));
-      const sizeAlongTangent = Math.abs(sWidth * Math.cos(radDiff)) + Math.abs(sHeight * Math.sin(radDiff));
-      
-      const thickness = cmToPx(wall.thickness);
-      const overlapNormal = sizeAlongNormal / 2 + thickness / 2;
-      const overlapTangent = sizeAlongTangent / 2;
-      
-      if (Math.abs(distToLine) < overlapNormal - 0.1 && t > -overlapTangent + 0.1 && t < wallLen + overlapTangent - 0.1) {
-        const pushDist = overlapNormal - Math.abs(distToLine);
-        const pushDir = distToLine >= 0 ? 1 : -1;
-        newX += nx * pushDir * pushDist;
-        newY += ny * pushDir * pushDist;
-      }
-    });
 
     return { x: newX, y: newY, rotation, attachedWallId: nearestWallId, attachedWallSide: nearestWallSide, attachedWallOffset: nearestWallOffset };
   };
@@ -1951,7 +1936,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       const radius = cmToPx(s.width / 2);
       const numSteps = s.steps || 14;
       return (
-        <Group opacity={isArrival ? 0.3 : 1}>
+        <Group opacity={isArrival ? 0.3 : 0.7}>
           <Circle
             radius={radius}
             fill="white"
@@ -2018,7 +2003,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     }
 
     return (
-      <Group opacity={isArrival ? 0.3 : 1}>
+      <Group opacity={isArrival ? 0.3 : 0.7}>
         {/* Landings */}
         {flights.length > 1 && (
           <Group>

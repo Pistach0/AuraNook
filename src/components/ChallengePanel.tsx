@@ -509,7 +509,8 @@ Devuelve un JSON con el siguiente formato exacto:
               floor.rooms.forEach(room => {
                 if (room.roomType === 'dormitorio' || room.name.toLowerCase().includes('dormitorio')) {
                   const area = calculateArea(room.points, project.gridSize * 2);
-                  if (area >= 6 && area < 10 && hasBasicFurniture(room, floor, 'dormitorio_individual')) {
+                  // Un dormitorio doble (>10m2) también cuenta como válido para el requisito de individual
+                  if (area >= 6 && (hasBasicFurniture(room, floor, 'dormitorio_individual') || hasBasicFurniture(room, floor, 'dormitorio_doble'))) {
                     count++;
                   }
                 }
