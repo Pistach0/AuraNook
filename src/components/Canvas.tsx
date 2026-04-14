@@ -493,9 +493,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
     let snappedToCounter = false;
 
     const nonSnappingTypes = ['car', 'chair', 'office_chair', 'dining_table', 'dining_table_round', 'coffee_table', 'desk', 'kitchen_stool'];
-    if (nonSnappingTypes.includes(f.type)) {
-      return { x: newX, y: newY, rotation, attachedWallId: undefined, attachedWallSide: undefined, attachedWallOffset: undefined };
-    }
+    const shouldSnapToWall = f.snapToWall !== undefined ? f.snapToWall : !nonSnappingTypes.includes(f.type);
 
     // Counter snapping logic
     if (f.type === 'kitchen_counter') {
@@ -564,7 +562,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
       }
     }
 
-    if (!snappedToCounter) {
+    if (!snappedToCounter && shouldSnapToWall) {
       const fHeight = cmToPx(f.height);
       const fWidth = cmToPx(f.width);
       
@@ -715,6 +713,10 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           newY += ny * pushDir * pushDist;
         }
       });
+    } else if (!snappedToCounter && !shouldSnapToWall) {
+      nearestWallId = undefined;
+      nearestWallSide = undefined;
+      nearestWallOffset = undefined;
     }
 
     return { x: newX, y: newY, rotation, attachedWallId: nearestWallId, attachedWallSide: nearestWallSide, attachedWallOffset: nearestWallOffset };

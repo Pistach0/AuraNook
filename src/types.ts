@@ -88,6 +88,7 @@ export interface Furniture {
   attachedWallId?: string;
   attachedWallSide?: number; // 1 or -1
   attachedWallOffset?: number; // Distance from wall start (0 to 1)
+  snapToWall?: boolean;
 }
 
 export enum StairsType {

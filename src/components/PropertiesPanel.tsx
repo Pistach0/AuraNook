@@ -408,6 +408,16 @@ export function PropertiesPanel({ item, gridSize = 20, onUpdate }: PropertiesPan
       {/* Furniture Specific */}
       {isFurniture && (
         <section className="space-y-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={item.snapToWall !== false}
+              onChange={(e) => onUpdate({ ...item, snapToWall: e.target.checked })}
+              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            />
+            <span className="text-sm">Fijar a paredes automáticamente</span>
+          </label>
+
           <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.layer')}</label>
           <div className="flex items-center gap-4">
             <input 
