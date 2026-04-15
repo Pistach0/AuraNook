@@ -639,8 +639,8 @@ export default function App() {
       {/* Main Area */}
       <div className="flex-1 flex flex-col relative min-w-0">
         {/* Header */}
-        <header className="h-16 border-b border-[#141414] flex items-center justify-between px-4 bg-white/30 backdrop-blur-md z-10">
-          <div className="flex items-center gap-4 min-w-0">
+        <header className="min-h-[4rem] border-b border-[#141414] flex flex-wrap items-center justify-between px-4 py-2 gap-y-3 bg-white/30 backdrop-blur-md z-10">
+          <div className="flex flex-wrap items-center gap-4 min-w-0">
             <div className="flex items-center gap-3 min-w-0">
               {isEditingName ? (
               <div className="flex items-center gap-1">
@@ -701,8 +701,8 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0 justify-end">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#141414]/5 rounded-full p-1 sm:p-1.5 mr-1">
               <button 
                 onClick={() => setShowClearConfirm(true)}
                 className="p-1.5 hover:bg-red-100 rounded-full transition-colors text-red-600"
@@ -712,7 +712,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#141414]/5 rounded-full p-1 sm:p-1.5 mr-1">
               <button 
                 onClick={handleExportDXF}
                 className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors text-[#141414]/60 hover:text-[#141414]"
@@ -787,7 +787,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#141414]/5 rounded-full p-1 sm:p-1.5 mr-1">
               <button 
                 onClick={() => setProject(p => ({ ...p, showGhostFloors: !p.showGhostFloors }))}
                 className={cn(
@@ -818,7 +818,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#141414]/5 rounded-full p-1 sm:p-1.5 mr-1">
               <button 
                 onClick={undo}
                 disabled={historyIndex <= 0}
@@ -837,7 +837,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#141414]/5 rounded-full p-1.5 mr-1">
+            <div className="flex items-center gap-1 sm:gap-2 bg-[#141414]/5 rounded-full p-1 sm:p-1.5 mr-1">
               <button 
                 onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
                 className="p-1.5 hover:bg-[#141414]/10 rounded-full transition-colors flex items-center gap-1 px-3"
@@ -860,7 +860,7 @@ export default function App() {
             <button 
               onClick={() => setProject(p => ({ ...p, showGrid: !p.showGrid }))}
               className={cn(
-                "p-2 rounded-full transition-colors border border-transparent",
+                "p-1 sm:p-2 rounded-full transition-colors border border-transparent",
                 project.showGrid ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
               )}
               title={t('app.showGrid')}
@@ -870,24 +870,24 @@ export default function App() {
             <button 
               onClick={() => setProject(p => ({ ...p, showDimensions: !p.showDimensions }))}
               className={cn(
-                "p-2 rounded-full transition-colors border border-transparent",
+                "p-1 sm:p-2 rounded-full transition-colors border border-transparent",
                 project.showDimensions ? "bg-[#141414] text-white" : "hover:bg-[#141414]/10"
               )}
               title={t('app.showDimensions')}
             >
               <Ruler size={18} />
             </button>
-            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+            <div className="hidden sm:block h-4 w-px bg-[#141414]/20 mx-1" />
             
             <div className="flex items-center gap-1">
               <button 
                 onClick={handleExportProject}
-                className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
+                className="p-1 sm:p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
                 title={t('app.exportJson')}
               >
                 <Download size={18} />
               </button>
-              <label className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors cursor-pointer" title={t('app.importJson')}>
+              <label className="p-1 sm:p-2 rounded-full hover:bg-[#141414]/10 transition-colors cursor-pointer" title={t('app.importJson')}>
                 <Upload size={18} />
                 <input 
                   type="file" 
@@ -898,7 +898,7 @@ export default function App() {
               </label>
             </div>
 
-            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+            <div className="hidden sm:block h-4 w-px bg-[#141414]/20 mx-1" />
             
             <button 
               onClick={() => {
@@ -926,30 +926,30 @@ export default function App() {
               <span className="hidden sm:inline">Evaluar con IA</span>
             </button>
 
-            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+            <div className="hidden sm:block h-4 w-px bg-[#141414]/20 mx-1" />
 
             <button 
               onClick={saveProject}
-              className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
+              className="p-1 sm:p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
               title={t('app.save')}
             >
               <Save size={18} />
             </button>
             <button 
               onClick={() => setIsProjectsListOpen(true)}
-              className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
+              className="p-1 sm:p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
               title={t('app.savedProjects')}
             >
               <FolderOpen size={18} />
             </button>
             <button 
               onClick={() => setIsHelpOpen(true)}
-              className="p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
+              className="p-1 sm:p-2 rounded-full hover:bg-[#141414]/10 transition-colors"
               title={t('app.help')}
             >
               <HelpCircle size={18} />
             </button>
-            <div className="h-4 w-px bg-[#141414]/20 mx-1" />
+            <div className="hidden sm:block h-4 w-px bg-[#141414]/20 mx-1" />
           </div>
         </header>
 
