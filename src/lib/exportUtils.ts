@@ -295,9 +295,9 @@ export async function downloadPDF(
     
     // Calculate section widths
     const wWatermark = 25;
-    const wGraphScale = 40;
-    const wScaleText = 25;
-    const wArea = 30;
+    const wGraphScale = 25;
+    const wScaleText = 45;
+    const wArea = 50;
     const wFixed = wWatermark + wGraphScale + wScaleText + wArea;
     const wRemaining = tbWidth - wFixed;
     const wProject = wRemaining * 0.55;
@@ -338,7 +338,7 @@ export async function downloadPDF(
     // 3. Area
     const floorArea = floor.rooms.reduce((acc, room) => acc + calculateArea(room.points, pixelsPerMeter), 0);
     const displayArea = unit === 'in' ? (floorArea * 10.7639).toFixed(2) + ' sq ft' : floorArea.toFixed(2) + ' m²';
-    pdf.text(`${t('app.area')}: ${displayArea}`, xArea + 2, textY);
+    pdf.text(`${t('app.totalArea')}: ${displayArea}`, xArea + 2, textY);
     
     // 4. Scale Text
     const scaleText = options.scale === 'auto' ? `${t('print.scale')}: ${t('print.autoFit')}` : `${t('print.scale')}: 1:${options.scale}`;
@@ -348,16 +348,32 @@ export async function downloadPDF(
     const realWidthMeters = exportWidth / pixelsPerMeter;
     const mmPerMeter = finalImgWidth / realWidthMeters;
     
-    // If mmPerMeter is too large for the box (e.g. > 35mm), draw a 0.5m scale instead
+    // Adjust scale length to fit nicely in the box (max ~15mm, min ~5mm)
     let scaleLengthMeters = 1;
     let scaleLengthMm = mmPerMeter;
-    let scaleLabel = "1m";
     
-    if (scaleLengthMm > 35) {
+    if (scaleLengthMm > 15) {
       scaleLengthMeters = 0.5;
       scaleLengthMm = mmPerMeter / 2;
-      scaleLabel = "0.5m";
     }
+    if (scaleLengthMm > 15) {
+      scaleLengthMeters = 0.2;
+      scaleLengthMm = mmPerMeter / 5;
+    }
+    if (scaleLengthMm > 15) {
+      scaleLengthMeters = 0.1;
+      scaleLengthMm = mmPerMeter / 10;
+    }
+    if (scaleLengthMm < 5) {
+      scaleLengthMeters = 5;
+      scaleLengthMm = mmPerMeter * 5;
+    }
+    if (scaleLengthMm < 5) {
+      scaleLengthMeters = 10;
+      scaleLengthMm = mmPerMeter * 10;
+    }
+    
+    let scaleLabel = `${scaleLengthMeters}m`;
     
     const scaleLineX = xGraphScale + (wGraphScale - scaleLengthMm) / 2; // Center in section
     const scaleLineY = tbY + 8;

@@ -381,7 +381,7 @@ export function PropertiesPanel({ item, gridSize = 20, onUpdate }: PropertiesPan
       )}
 
       {/* Color / Style / Texture */}
-      {(isRoom || isFurniture) && (
+      {isRoom && (
         <section className="space-y-6">
           <div className="space-y-4">
             <label className="block text-[10px] uppercase tracking-widest opacity-50">{t('properties.color')}</label>
