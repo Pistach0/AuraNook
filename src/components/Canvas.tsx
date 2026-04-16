@@ -1778,6 +1778,40 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         )}
 
+        {f.type === 'tree' && (
+          <Group>
+            {/* Shadow */}
+            <Ellipse x={5} y={5} radiusX={width/2} radiusY={height/2} fill="#000" opacity={0.15} />
+            
+            {/* Trunk (visible slightly through leaves or at the center) */}
+            <Circle x={0} y={0} radius={width/10} fill="#5C4033" stroke={strokeColor} strokeWidth={1} />
+            
+            {/* Main Canopy Layers */}
+            <Circle x={0} y={0} radius={width/2.2} fill="#15803D" opacity={0.8} stroke="#14532D" strokeWidth={1} />
+            <Circle x={-width/8} y={-height/8} radius={width/2.5} fill="#16A34A" opacity={0.8} />
+            <Circle x={width/10} y={height/10} radius={width/3} fill="#22C55E" opacity={0.7} />
+            
+            {/* Additional leaf clusters for texture */}
+            {[0, 60, 120, 180, 240, 300].map((angle, i) => {
+              const rad = (angle * Math.PI) / 180;
+              const dist = width / 3.5;
+              const clusterRadius = width / 4;
+              return (
+                <Circle 
+                  key={i}
+                  x={Math.cos(rad) * dist} 
+                  y={Math.sin(rad) * dist} 
+                  radius={clusterRadius} 
+                  fill={i % 2 === 0 ? "#16A34A" : "#15803D"} 
+                  opacity={0.85}
+                  stroke="#14532D"
+                  strokeWidth={0.5}
+                />
+              );
+            })}
+          </Group>
+        )}
+
         {f.type === 'kitchen_stool' && (
           <Group>
             {/* Base ring */}
@@ -1842,6 +1876,42 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
             <Rect x={-width/2 + 20} y={-height/2 + 30} width={40} height={10} fill="#F0F9FF" opacity={0.4} />
           </Group>
         )}
+
+        {f.type === 'pergola' && (() => {
+          const postSize = 12;
+          const joistSpacing = 40;
+          const numJoists = Math.max(2, Math.floor(width / joistSpacing));
+          const joists = [];
+          
+          for (let i = 0; i <= numJoists; i++) {
+            const x = -width/2 + (i * (width / numJoists));
+            joists.push(<Line key={i} points={[x, -height/2 - 10, x, height/2 + 10]} stroke="#8B4513" strokeWidth={4} />);
+          }
+          
+          return (
+            <Group>
+              {/* Floor Area (Optional, slight shading) */}
+              <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#000000" opacity={0.03} />
+              
+              {/* Posts */}
+              <Rect x={-width/2 + 5} y={-height/2 + 5} width={postSize} height={postSize} fill="#5C4033" stroke={strokeColor} strokeWidth={1} />
+              <Rect x={width/2 - 5 - postSize} y={-height/2 + 5} width={postSize} height={postSize} fill="#5C4033" stroke={strokeColor} strokeWidth={1} />
+              <Rect x={-width/2 + 5} y={height/2 - 5 - postSize} width={postSize} height={postSize} fill="#5C4033" stroke={strokeColor} strokeWidth={1} />
+              <Rect x={width/2 - 5 - postSize} y={height/2 - 5 - postSize} width={postSize} height={postSize} fill="#5C4033" stroke={strokeColor} strokeWidth={1} />
+              
+              {/* Main Beams (Vertical) */}
+              <Rect x={-width/2 + 5} y={-height/2} width={postSize} height={height} fill="#654321" stroke={strokeColor} strokeWidth={1} />
+              <Rect x={width/2 - 5 - postSize} y={-height/2} width={postSize} height={height} fill="#654321" stroke={strokeColor} strokeWidth={1} />
+              
+              {/* Main Beams (Horizontal) */}
+              <Rect x={-width/2 - 5} y={-height/2 + 5} width={width + 10} height={postSize} fill="#654321" stroke={strokeColor} strokeWidth={1} />
+              <Rect x={-width/2 - 5} y={height/2 - 5 - postSize} width={width + 10} height={postSize} fill="#654321" stroke={strokeColor} strokeWidth={1} />
+
+              {/* Joists */}
+              {joists}
+            </Group>
+          );
+        })()}
 
         {f.type === 'billiards' && (
           <Group>
@@ -1917,7 +1987,7 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
         )}
 
         {/* Fallback for any other furniture type */}
-        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'bookshelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool', 'bbq', 'sunbed', 'pool', 'billiards', 'foosball', 'ping_pong', 'arcade', 'rug', 'swing'].includes(f.type) && (
+        {!['bed_double', 'bed_single', 'wardrobe', 'sofa', 'sofa_2', 'chaiselongue', 'armchair', 'dining_table', 'dining_table_round', 'coffee_table', 'chair', 'toilet', 'bathroom_sink', 'shower', 'bathtub', 'stove', 'sink', 'fireplace', 'car', 'desk', 'office_chair', 'fridge', 'washing_machine', 'dryer', 'workbench', 'shelf', 'bookshelf', 'nightstand', 'kitchen_counter', 'plant', 'tv_unit', 'kitchen_stool', 'bbq', 'sunbed', 'pool', 'billiards', 'foosball', 'ping_pong', 'arcade', 'rug', 'swing', 'pergola', 'tree'].includes(f.type) && (
           <Group>
             <Rect x={-width/2} y={-height/2} width={width} height={height} fill="#F5F5F5" stroke={strokeColor} strokeWidth={strokeW} cornerRadius={4} />
             <Line points={[-width/2, -height/2, width/2, height/2]} stroke={strokeColor} strokeWidth={0.5} opacity={0.3} />
