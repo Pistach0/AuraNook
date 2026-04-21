@@ -2453,17 +2453,6 @@ export const Canvas = React.forwardRef<any, CanvasProps>(({
           </Group>
         ) : (
           <Group>
-            {/* Exterior Sill (Alfeizar) */}
-            <Rect 
-              width={cmToPx(opening.width) + 10} 
-              height={8} 
-              fill="#F3F4F6" 
-              stroke="#9CA3AF"
-              strokeWidth={0.5}
-              offsetX={(cmToPx(opening.width) + 10) / 2} 
-              offsetY={cmToPx(wall.thickness) / 2 + 8} 
-              cornerRadius={1}
-            />
             {/* Window Frame */}
             <Rect 
               width={cmToPx(opening.width)} 
