@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Trophy, Play, CheckCircle2, Circle, Loader2, Sparkles, Bookmark, BookmarkCheck, Star, Trash2 } from 'lucide-react';
 import { Challenge, Project, Floor, Room, Furniture, ChallengeRequirement } from '../types';
-import { cn, calculateArea, isPointInPolygon } from '../lib/utils';
+import { cn, calculateArea, getComputedRoomArea, isPointInPolygon } from '../lib/utils';
 import { GoogleGenAI, Type } from '@google/genai';
 
 interface ChallengePanelProps {
@@ -134,14 +134,14 @@ Devuelve un JSON con el siguiente formato exacto:
       
       let difficultyPrompt = '';
       if (difficulty === 'facil') {
-        difficultyPrompt = 'Nivel FÁCIL: Pocos requisitos (3 o 4), restricciones muy holgadas, espacios grandes permitidos. Ideal para principiantes. PROHIBIDO pedir patios interiores.';
+        difficultyPrompt = 'Nivel FÁCIL: Pocos requisitos (3 o 4), restricciones muy holgadas, espacios grandes permitidos. Ideal para principiantes. Añade VARIEDAD: no hagas siempre casas de 1 planta, incluye también viviendas independientes de 2 plantas. PROHIBIDO pedir patios interiores.';
       } else if (difficulty === 'medio') {
         difficultyPrompt = 'Nivel MEDIO: Requisitos estándar (4 o 5), restricciones normales. Un reto equilibrado. PROHIBIDO pedir patios interiores.';
       } else {
         difficultyPrompt = 'Nivel DIFÍCIL: Muchos requisitos (5 a 7), restricciones muy estrictas (ej. áreas máximas muy pequeñas, muchos muebles específicos requeridos). Un verdadero rompecabezas arquitectónico. Aquí SÍ puedes (y es recomendable) pedir un patio interior.';
       }
       
-      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE estos requisitos obligatorios:\n1. Un área máxima (`max_area`).\n2. Dimensiones máximas de la parcela (ancho x largo) usando `max_dimensions` (ej. "8x15"). En la descripción del requisito debe quedar claro el ancho y el largo.\n3. Especificar claramente el número de dormitorios y su tipo (dobles o individuales) usando `double_bedroom_count` y/o `single_bedroom_count`. En la descripción del requisito debe quedar claro cuántos son dobles y cuántos individuales. PROHIBIDO usar `room_type` con valor "dormitorio" para contar habitaciones, usa siempre los contadores específicos.\n\nAdemás, añade VARIEDAD a los retos. No hagas siempre el mismo tipo de casa. Pide cosas como: "un garaje para 2 coches", "una casa de 2 plantas", "una vivienda entre medianeras", "un loft sin paredes interiores", etc.';
+      const mandatoryRequirements = 'IMPORTANTE: Para TODOS los niveles de dificultad, debes incluir SIEMPRE estos requisitos obligatorios:\n1. Un área máxima (`max_area`).\n2. Dimensiones máximas de la parcela (ancho x largo) usando `max_dimensions` (ej. "8x15"). En la descripción de este requisito, SIEMPRE que sea una vivienda independiente, DEBES indicar las distancias a los linderos que hay que respetar (por ejemplo: "respetando 3m al frente, 3m atrás y 2m a los laterales").\n3. Especificar claramente el número de dormitorios y su tipo (dobles o individuales) usando `double_bedroom_count` y/o `single_bedroom_count`. En la descripción del requisito debe quedar claro cuántos son dobles y cuántos individuales. PROHIBIDO usar `room_type` con valor "dormitorio" para contar habitaciones, usa siempre los contadores específicos.\n\nAdemás, añade VARIEDAD a los retos. No hagas siempre el mismo tipo de casa. Pide cosas como: "un garaje para 2 coches", "una casa de 2 plantas", "una vivienda entre medianeras", "un loft sin paredes interiores", etc.';
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -332,9 +332,7 @@ Devuelve un JSON con el siguiente formato exacto:
             let totalArea = 0;
             project.floors.forEach(floor => {
               floor.rooms.forEach(room => {
-                if (room.roomType !== 'patio' && !room.name.toLowerCase().includes('patio') && room.roomType !== 'terraza' && !room.name.toLowerCase().includes('terraza')) {
-                  totalArea += calculateArea(room.points, project.gridSize * 2);
-                }
+                totalArea += getComputedRoomArea(room, project.gridSize * 2);
               });
             });
             // Use a small epsilon (0.1) for floating point comparisons

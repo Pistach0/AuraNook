@@ -55,7 +55,7 @@ import {
   Trophy,
   Sparkles,
 } from 'lucide-react';
-import { calculateArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
+import { calculateArea, getComputedRoomArea, getMidpoint, getDistance, getAngle, cn, isPointOnSegment } from './lib/utils';
 import { downloadDXF, downloadPDF, downloadPNG } from './lib/exportUtils';
 import { useSettings } from './context/SettingsContext';
 
@@ -272,10 +272,7 @@ export default function App() {
 
   const totalProjectArea = project.floors.reduce((total, floor) => {
     return total + floor.rooms.reduce((acc, room) => {
-      if (room.roomType === 'patio' || room.name.toLowerCase().includes('patio') || room.roomType === 'terraza' || room.name.toLowerCase().includes('terraza')) {
-        return acc;
-      }
-      return acc + calculateArea(room.points, project.gridSize * 2);
+      return acc + getComputedRoomArea(room, project.gridSize * 2);
     }, 0);
   }, 0);
 

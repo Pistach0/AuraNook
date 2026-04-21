@@ -1,7 +1,7 @@
 import { Floor, Wall, Opening, Furniture, Stairs, StairsType, Project } from "../types";
 import jsPDF from "jspdf";
 import Konva from "konva";
-import { calculateArea } from "./utils";
+import { calculateArea, getComputedRoomArea } from "./utils";
 
 /**
  * Generates a basic DXF string for the given floor.
@@ -336,7 +336,7 @@ export async function downloadPDF(
     pdf.text(floorName, xFloor + 2, textY);
 
     // 3. Area
-    const floorArea = floor.rooms.reduce((acc, room) => acc + calculateArea(room.points, pixelsPerMeter), 0);
+    const floorArea = floor.rooms.reduce((acc, room) => acc + getComputedRoomArea(room, pixelsPerMeter), 0);
     const displayArea = unit === 'in' ? (floorArea * 10.7639).toFixed(2) + ' sq ft' : floorArea.toFixed(2) + ' m²';
     pdf.text(`${t('app.totalArea')}: ${displayArea}`, xArea + 2, textY);
     

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Loader2, Sparkles, Star } from 'lucide-react';
 import { Project } from '../types';
 import { GoogleGenAI, Type } from '@google/genai';
-import { calculateArea, isPointInPolygon } from '../lib/utils';
+import { calculateArea, getComputedRoomArea, isPointInPolygon } from '../lib/utils';
 
 interface EvaluateDesignModalProps {
   project: Project;
@@ -29,11 +29,17 @@ export function EvaluateDesignModal({ project, isOpen, onClose }: EvaluateDesign
 Habitaciones:
 ${f.rooms.map(r => {
   const area = calculateArea(r.points, project.gridSize * 2);
+  const computedArea = getComputedRoomArea(r, project.gridSize * 2);
   const isOutdoor = r.roomType === 'patio' || r.roomType === 'terraza' || r.name.toLowerCase().includes('patio') || r.name.toLowerCase().includes('terraza');
-  if (!isOutdoor) {
-    totalIndoorArea += area;
-  }
-  return `- ${r.name || r.roomType} (${area.toFixed(2)} m2)${isOutdoor ? ' [Exterior - No suma a superficie habitable]' : ''}`;
+  const isPorch = r.roomType === 'porche' || r.name.toLowerCase().includes('porche');
+  
+  totalIndoorArea += computedArea;
+  
+  let note = '';
+  if (isOutdoor) note = ' [Exterior - No suma a superficie habitable]';
+  else if (isPorch) note = ` [Porche - Suma al 50%: ${computedArea.toFixed(2)} m2]`;
+  
+  return `- ${r.name || r.roomType} (Real: ${area.toFixed(2)} m2)${note}`;
 }).join('\n')}
 Muebles:
 ${f.furniture.map(furn => `- ${furn.name} (${furn.type}) en ${f.rooms.find(r => isPointInPolygon({x: furn.x, y: furn.y}, r.points))?.name || 'fuera'}`).join('\n')}
@@ -42,8 +48,8 @@ ${f.furniture.map(furn => `- ${furn.name} (${furn.type}) en ${f.rooms.find(r => 
 
       const prompt = `Actúa como un arquitecto y diseñador de interiores experto. Evalúa el siguiente diseño de vivienda.
       
-Superficie habitable total (interior): ${totalIndoorArea.toFixed(2)} m2
-(Nota: Los patios y terrazas son espacios exteriores y NO deben sumarse a la superficie total de la vivienda al evaluar el tamaño).
+Superficie computable total: ${totalIndoorArea.toFixed(2)} m2
+(Nota: Los patios y terrazas son espacios exteriores y NO computan. Los porches computan al 50%. En la lista de habitaciones se reflejan ambos valores).
 
 Diseño del usuario:
 ${projectSummary}

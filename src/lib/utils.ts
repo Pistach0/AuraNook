@@ -18,6 +18,22 @@ export function calculateArea(points: { x: number; y: number }[], pixelsPerMeter
   return area / (pixelsPerMeter * pixelsPerMeter);
 }
 
+export function getComputedRoomArea(room: { points: { x: number; y: number }[]; roomType?: string; name?: string }, pixelsPerMeter: number): number {
+  const rawArea = calculateArea(room.points, pixelsPerMeter);
+  const typeStr = (room.roomType || '').toLowerCase();
+  const nameStr = (room.name || '').toLowerCase();
+  
+  if (typeStr === 'patio' || typeStr === 'terraza' || nameStr.includes('patio') || nameStr.includes('terraza')) {
+    return 0;
+  }
+  
+  if (typeStr === 'porche' || nameStr.includes('porche')) {
+    return rawArea * 0.5;
+  }
+  
+  return rawArea;
+}
+
 export function getMidpoint(p1: { x: number; y: number }, p2: { x: number; y: number }) {
   return {
     x: (p1.x + p2.x) / 2,
